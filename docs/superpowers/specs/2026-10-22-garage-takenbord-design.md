@@ -3,6 +3,15 @@
 **Datum:** 2026-10-22
 **Status:** goedgekeurd in brainstorm, ter review
 
+## 0. Wijziging (22-10-2026): één bedrijf
+
+Max heeft besloten dat er maar **één bedrijf** is. Waar dit document meerdere bedrijven, `bedrijf_id`, Row Level Security per bedrijf of een bedrijfskiezer noemt, vervalt dat. Daarvoor in de plaats:
+- Garagenaam, garage-adres en werkdagen zijn algemene **instellingen** (één rij).
+- De beheerder kan nog wel meerdere **borden** aanmaken.
+- Rechten (beheerder tegenover medewerker) worden in de applicatielaag afgedwongen. Medewerkers zien alle borden.
+
+De uitwerking staat in `docs/superpowers/plans/2026-10-22-addendum-een-bedrijf.md`.
+
 ## 1. Doel
 
 Een webapp in de stijl van Trello waarop medewerkers van een autogarage kleine taken (ophalen, wegbrengen, regelen) per weekdag op een bord zetten. Eén uitvoerder (de beheerder, Max) werkt die taken af. Taken kunnen een tijd, prioriteit, herhaling en één of meer locaties hebben. Bij meerdere locaties berekent de app de snelste volgorde met actueel verkeer en opent Google Maps.
