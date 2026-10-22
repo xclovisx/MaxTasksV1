@@ -3,8 +3,10 @@ import { ActieFormulier } from '@/components/actie-formulier';
 import { WerkdagenKeuze } from '@/components/beheer/werkdagen-keuze';
 import { Invoer, Paneel, Veld } from '@/components/ui';
 import { haalInstellingen } from '@/lib/diensten/instellingen';
+import { vereisBeheerderSessie } from '@/lib/web/huidige-gebruiker';
 
 export default async function InstellingenPagina() {
+  await vereisBeheerderSessie();
   const instellingen = await haalInstellingen();
   return (
     <div className="space-y-4">

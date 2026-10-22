@@ -32,6 +32,17 @@ export function maandagVan(d: Datum): Datum {
   return plusDagen(d, 1 - weekdag(d));
 }
 
+/**
+ * Kolommen van het weekbord: de werkdagen van de week plus elke andere dag (ma-zo) waarop
+ * een taak staat, op datumvolgorde. Zo verdwijnt er nooit een taak van het bord.
+ */
+export function dagenVoorWeek(maandag: Datum, werkdagen: number[], takenDatums: Datum[]): Datum[] {
+  const dagen = new Set<Datum>(werkdagen.map((w) => plusDagen(maandag, w - 1)));
+  const zondag = plusDagen(maandag, 6);
+  for (const d of takenDatums) if (d >= maandag && d <= zondag) dagen.add(d);
+  return [...dagen].sort();
+}
+
 export function eersteWerkdagVanaf(d: Datum, werkdagen: number[]): Datum {
   if (werkdagen.length === 0) throw new Error('Geen werkdagen ingesteld');
   let x = d;

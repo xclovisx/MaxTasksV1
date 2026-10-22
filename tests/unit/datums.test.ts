@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  eersteWerkdagVanaf, isoWeek, kortDatumLabel, laatsteDagVanMaand, maandagVan, parseWeekCode,
+  dagenVoorWeek, eersteWerkdagVanaf, isoWeek, kortDatumLabel, laatsteDagVanMaand, maandagVan, parseWeekCode,
   plusDagen, vandaagInAmsterdam, verschilInDagen, weekCode, weekdag,
 } from '@/lib/domein/datums';
 
@@ -63,5 +63,33 @@ describe('datums', () => {
   it('maakt een kort datumlabel', () => {
     expect(kortDatumLabel('2026-10-22')).toBe('22 okt');
     expect(kortDatumLabel('2026-03-01')).toBe('1 mrt');
+  });
+});
+
+describe('dagenVoorWeek', () => {
+  const maandag = '2026-10-19';
+
+  it('geeft alleen de werkdagen, gesorteerd, als er geen andere taken zijn', () => {
+    expect(dagenVoorWeek(maandag, [5, 1, 3], [])).toEqual(['2026-10-19', '2026-10-21', '2026-10-23']);
+    expect(dagenVoorWeek(maandag, WERKWEEK, ['2026-10-20'])).toEqual([
+      '2026-10-19', '2026-10-20', '2026-10-21', '2026-10-22', '2026-10-23',
+    ]);
+  });
+
+  it('voegt een niet-werkdag toe als daar een taak staat, op datumvolgorde', () => {
+    expect(dagenVoorWeek(maandag, WERKWEEK, ['2026-10-24', '2026-10-18'])).toEqual([
+      '2026-10-19', '2026-10-20', '2026-10-21', '2026-10-22', '2026-10-23', '2026-10-24',
+    ]);
+    expect(dagenVoorWeek(maandag, [2, 4], ['2026-10-19', '2026-10-25'])).toEqual([
+      '2026-10-19', '2026-10-20', '2026-10-22', '2026-10-25',
+    ]);
+  });
+
+  it('dedupliceert datums', () => {
+    expect(dagenVoorWeek(maandag, [1], ['2026-10-24', '2026-10-24', '2026-10-19'])).toEqual(['2026-10-19', '2026-10-24']);
+  });
+
+  it('negeert taakdatums buiten de week', () => {
+    expect(dagenVoorWeek(maandag, [1], ['2026-10-18', '2026-10-26', '2026-11-30'])).toEqual(['2026-10-19']);
   });
 });

@@ -20,6 +20,7 @@ const WEEKKNOP =
 export type WeekBordProps = {
   bordId: string;
   dagen: Datum[];
+  werkdagen: number[];
   taken: Taak[];
   vandaag: Datum;
   isBeheerder: boolean;
@@ -29,7 +30,7 @@ export type WeekBordProps = {
   links: { vorige: string; deze: string; volgende: string };
 };
 
-export function WeekBord({ bordId, dagen, taken, vandaag, isBeheerder, gearchiveerd, weekLabel, periodeLabel, links }: WeekBordProps) {
+export function WeekBord({ bordId, dagen, werkdagen, taken, vandaag, isBeheerder, gearchiveerd, weekLabel, periodeLabel, links }: WeekBordProps) {
   const router = useRouter();
   const [dialoog, setDialoog] = useState<DialoogModus | null>(null);
   const [verplaatst, setVerplaatst] = useState<Record<string, Datum>>({});
@@ -157,6 +158,7 @@ export function WeekBord({ bordId, dagen, taken, vandaag, isBeheerder, gearchive
               datum={d}
               taken={perDag.get(d) ?? []}
               isVandaag={d === vandaag}
+              isWerkdag={werkdagen.includes(weekdag(d))}
               verborgenOpMobiel={d !== actieveDag}
               gearchiveerd={gearchiveerd}
               onNieuw={() => nieuweTaak(d)}

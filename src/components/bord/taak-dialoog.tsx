@@ -278,7 +278,7 @@ export function TaakDialoog({ modus, isBeheerder, onSluit }: { modus: DialoogMod
         {taak && (
           <div className="mt-5 border-t border-rand-zacht pt-4 text-xs text-tekst-flauw">
             <p>Aangemaakt door {taak.aangemaaktDoorNaam ?? 'onbekend'} · {formatMoment(new Date(taak.aangemaaktOp))}</p>
-            <p>Laatst gewijzigd door {taak.gewijzigdDoorNaam ?? 'onbekend'} · {formatMoment(new Date(taak.gewijzigdOp))}</p>
+            <p>Laatst gewijzigd door {taak.gewijzigdDoorNaam ?? 'systeem'} · {formatMoment(new Date(taak.gewijzigdOp))}</p>
             <details className="mt-2" onToggle={(e) => { if (e.currentTarget.open) laadHistorie(); }}>
               <summary className="cursor-pointer text-tekst-zacht hover:text-tekst">Geschiedenis</summary>
               {historie === null ? (

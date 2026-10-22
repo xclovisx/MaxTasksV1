@@ -18,10 +18,11 @@ export async function doorschuiven(sql: Db = db(), vandaag: Datum = vandaagInAms
       where datum = ${doel} and herhaling_id is not null`;
     const plan = planDoorschuiven(open, vandaag, werkdagen, new Set(bezet.map((r) => reeksSleutel(r.herhalingId, r.datum))));
     for (const v of plan.verplaatsen) {
-      await tx`update taken set datum = ${v.naar}, uitgesteld_van = coalesce(uitgesteld_van, datum), versie = versie + 1 where id = ${v.id}`;
+      await tx`update taken set datum = ${v.naar}, uitgesteld_van = coalesce(uitgesteld_van, datum), versie = versie + 1,
+        gewijzigd_door = null, gewijzigd_op = now() where id = ${v.id}`;
     }
     if (plan.gemist.length > 0) {
-      await tx`update taken set gemist = true, versie = versie + 1 where id in ${tx(plan.gemist)}`;
+      await tx`update taken set gemist = true, versie = versie + 1, gewijzigd_door = null, gewijzigd_op = now() where id in ${tx(plan.gemist)}`;
     }
     for (const bordId of new Set(open.map((t) => t.bordId))) await meldWijziging(tx, bordId);
     return { verplaatst: plan.verplaatsen.length, gemist: plan.gemist.length };

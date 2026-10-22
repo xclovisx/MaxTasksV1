@@ -5,7 +5,7 @@ import { haalBord } from '@/lib/diensten/borden';
 import { haalInstellingen } from '@/lib/diensten/instellingen';
 import { takenVoorPeriode } from '@/lib/diensten/taken';
 import {
-  isoWeek, kortDatumLabel, maandagVan, parseWeekCode, plusDagen, vandaagInAmsterdam, weekCode,
+  dagenVoorWeek, isoWeek, kortDatumLabel, maandagVan, parseWeekCode, plusDagen, vandaagInAmsterdam, weekCode,
 } from '@/lib/domein/datums';
 import { NietGevonden } from '@/lib/fouten';
 import { vereisGebruiker } from '@/lib/web/huidige-gebruiker';
@@ -29,8 +29,8 @@ export default async function BordPagina({
 
   const vandaag = vandaagInAmsterdam();
   const maandag = (week && parseWeekCode(week)) || maandagVan(vandaag);
-  const dagen = [...werkdagen].sort((a, b) => a - b).map((w) => plusDagen(maandag, w - 1));
-  const taken = (await takenVoorPeriode(bord.id, maandag, plusDagen(maandag, 6))).filter((t) => dagen.includes(t.datum));
+  const taken = await takenVoorPeriode(bord.id, maandag, plusDagen(maandag, 6));
+  const dagen = dagenVoorWeek(maandag, werkdagen, taken.map((t) => t.datum));
 
   return (
     <>
@@ -38,6 +38,7 @@ export default async function BordPagina({
         key={maandag}
         bordId={bord.id}
         dagen={dagen}
+        werkdagen={werkdagen}
         taken={taken}
         vandaag={vandaag}
         isBeheerder={gebruiker.rol === 'beheerder'}

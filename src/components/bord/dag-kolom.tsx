@@ -32,6 +32,7 @@ export function DagKolom({
   datum,
   taken,
   isVandaag,
+  isWerkdag,
   verborgenOpMobiel,
   gearchiveerd,
   onNieuw,
@@ -40,6 +41,7 @@ export function DagKolom({
   datum: Datum;
   taken: Taak[];
   isVandaag: boolean;
+  isWerkdag: boolean;
   verborgenOpMobiel: boolean;
   gearchiveerd: boolean;
   onNieuw: () => void;
@@ -61,7 +63,10 @@ export function DagKolom({
     >
       <header className="mb-2 flex items-baseline justify-between px-1.5 pt-1">
         <h2 className={cn('text-sm font-semibold capitalize', isVandaag && 'text-accent')}>{dagnaam}</h2>
-        <span className="text-xs text-tekst-flauw">{isVandaag ? 'vandaag' : kortDatumLabel(datum)}</span>
+        <span className="text-xs text-tekst-flauw">
+          {!isWerkdag && <span className="mr-1.5 italic">geen werkdag</span>}
+          {isVandaag ? 'vandaag' : kortDatumLabel(datum)}
+        </span>
       </header>
       <ul className="flex flex-1 flex-col gap-2">
         {taken.map((t) => (

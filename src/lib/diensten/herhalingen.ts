@@ -34,7 +34,8 @@ export async function genereerExemplaren(tx: Tx, herhalingId: string, vandaag: D
            h.interval_weken, h.startdatum, h.gegenereerd_tot, h.actief, h.aangemaakt_door,
            (select werkdagen from instellingen) as werkdagen
     from herhalingen h
-    where h.id = ${herhalingId}`;
+    where h.id = ${herhalingId}
+    for update of h`;
   if (!h || !h.actief) return 0;
   const tot = plusDagen(laterVan(h.startdatum, vandaag), HORIZON_DAGEN - 1);
   const van = h.gegenereerdTot ? laterVan(plusDagen(h.gegenereerdTot, 1), vandaag) : h.startdatum;

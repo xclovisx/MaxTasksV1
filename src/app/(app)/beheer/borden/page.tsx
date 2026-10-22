@@ -2,8 +2,10 @@ import { maakBordActie, wijzigBordActie } from '../acties';
 import { ActieFormulier } from '@/components/actie-formulier';
 import { Invoer, Paneel, Veld } from '@/components/ui';
 import { lijstBorden } from '@/lib/diensten/borden';
+import { vereisBeheerderSessie } from '@/lib/web/huidige-gebruiker';
 
 export default async function BordenPagina() {
+  await vereisBeheerderSessie();
   const borden = await lijstBorden({ metGearchiveerd: true });
   return (
     <div className="space-y-4">
