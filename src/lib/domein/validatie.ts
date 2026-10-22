@@ -31,10 +31,10 @@ export const nieuweTaakSchema = taakVeldenSchema.extend({
 
 export const reeksSchema = taakVeldenSchema.omit({ datum: true }).extend({ herhaling: herhalingSchema });
 
-export const bedrijfSchema = z.object({
+export const instellingenSchema = z.object({
   naam: z.string().trim().min(1, 'Naam is verplicht').max(100),
   garageAdres: z.string().trim().max(200).nullable().optional().transform((v) => v || null),
-  werkdagen: z.array(werkdag).min(1, 'Kies minstens één werkdag').transform((w) => [...new Set(w)].sort()),
+  werkdagen: z.array(werkdag).min(1, 'Kies minstens één werkdag').transform((w) => [...new Set(w)].sort((a, b) => a - b)),
 });
 
 export const bordNaamSchema = z.string().trim().min(1, 'Naam is verplicht').max(60);
@@ -46,7 +46,6 @@ export const medewerkerSchema = z.object({
     .trim()
     .toLowerCase()
     .regex(/^[a-z0-9._-]{3,32}$/, 'Gebruikersnaam: 3–32 tekens, alleen letters, cijfers, punt, streepje of underscore'),
-  bedrijfId: z.string().uuid('Kies een bedrijf'),
 });
 
 export function isUuid(x: string): boolean {
@@ -56,6 +55,6 @@ export function isUuid(x: string): boolean {
 export type TaakVeldenInvoer = z.input<typeof taakVeldenSchema>;
 export type NieuweTaakInvoer = z.input<typeof nieuweTaakSchema>;
 export type ReeksInvoer = z.input<typeof reeksSchema>;
-export type BedrijfInvoer = z.input<typeof bedrijfSchema>;
+export type InstellingenInvoer = z.input<typeof instellingenSchema>;
 export type MedewerkerInvoer = z.input<typeof medewerkerSchema>;
 export type HerhalingInvoer = z.output<typeof herhalingSchema>;
