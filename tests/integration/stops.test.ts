@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import type { Context } from '../../src/lib/context';
 import { db, transactie } from '../../src/lib/db/client';
 import { genereerExemplaren, wijzigReeks } from '../../src/lib/diensten/herhalingen';
-import { lijstLocaties, maakLocatie } from '../../src/lib/diensten/locaties';
+import { lijstLocaties, maakLocatie, verwijderLocatie } from '../../src/lib/diensten/locaties';
 import { haalTaak, maakTaak, taakHistorie, takenOpDatum, verwijderTaak, wijzigTaak, zetStatus } from '../../src/lib/diensten/taken';
 import { leegDatabase, maakBeheerderCtx, maakBord, maakMedewerkerCtx } from './helpers';
 
@@ -51,6 +51,23 @@ describe('stops bij taken', () => {
     expect((await taakHistorie(id))[0].wijzigingen).toEqual({ stops: { oud: 'A', nieuw: 'A → B' } });
   });
 
+  it('wijzigen met een lege lijst verwijdert de stops en logt de historie', async () => {
+    const { id } = await maakTaak(piet, { bordId, herhaling: null, ...velden('T', { stops: [plek('A'), plek('B')] }) });
+    await wijzigTaak(piet, id, 1, velden('T', { stops: [] }));
+    expect((await haalTaak(id)).stops).toEqual([]);
+    expect(await db()`select 1 from taak_stops where taak_id = ${id}`).toHaveLength(0);
+    expect((await taakHistorie(id))[0].wijzigingen).toEqual({ stops: { oud: 'A → B', nieuw: '' } });
+  });
+
+  it('een verwijderde locatie tussen kiezen en opslaan geeft een losse stop in plaats van een fout', async () => {
+    const weg = (await maakLocatie(piet, plek('Weg'))).id;
+    await verwijderLocatie(piet, weg);
+    const { id } = await maakTaak(piet, { bordId, herhaling: null, ...velden('T', { stops: [plek('Weg', { locatieId: weg })] }) });
+    const [stop] = (await haalTaak(id)).stops;
+    expect(stop.naam).toBe('Weg');
+    expect(stop.locatieId).toBeNull();
+  });
+
   it('status wijzigen laat stops staan; verwijderen ruimt ze op', async () => {
     const { id } = await maakTaak(piet, { bordId, herhaling: null, ...velden('T', { stops: [plek('X')] }) });
     await zetStatus(beheerder, id, 1, 'bezig');
@@ -75,6 +92,24 @@ describe('stops bij reeksen', () => {
     expect(telling[0].zonder).toBe(0);
   });
 
+  it('een verwijderde opgeslagen locatie blokkeert het genereren van de reeks niet', async () => {
+    const loc = (await maakLocatie(piet, plek('Werkplaats'))).id;
+    await maakTaak(piet, {
+      bordId, herhaling: { type: 'dagelijks', weekdagen: [], intervalWeken: 1 },
+      ...velden('Vegen', { stops: [plek('Werkplaats', { locatieId: loc })] }),
+    }, VANDAAG);
+    const [{ herhalingId }] = await db()<{ herhalingId: string }[]>`select herhaling_id from taken limit 1`;
+    await verwijderLocatie(piet, loc);
+    await transactie((tx) => genereerExemplaren(tx, herhalingId, '2026-11-10'));
+    const rijen = await db()<{ naam: string; adres: string; locatieId: string | null }[]>`
+      select s.naam, s.adres, s.locatie_id from taken t join taak_stops s on s.taak_id = t.id where t.datum >= '2026-11-10'`;
+    expect(rijen.length).toBeGreaterThan(0);
+    for (const r of rijen) expect(r).toEqual({ naam: 'Werkplaats', adres: 'Werkplaatsstraat 1', locatieId: null });
+    const telling = await db()<{ zonder: number }[]>`
+      select count(*)::int as zonder from taken t where not exists (select 1 from taak_stops s where s.taak_id = t.id)`;
+    expect(telling[0].zonder).toBe(0);
+  });
+
   it('reeks wijzigen past stops toe op nieuwe en bezige exemplaren', async () => {
     const { id } = await maakTaak(piet, {
       bordId, herhaling: { type: 'dagelijks', weekdagen: [], intervalWeken: 1 },
@@ -88,6 +123,9 @@ describe('stops bij reeksen', () => {
     }, VANDAAG);
     const namen = await db()<{ naam: string }[]>`select distinct naam from taak_stops`;
     expect(namen.map((n) => n.naam)).toEqual(['Nieuw']);
+    const zonder = await db()<{ zonder: number }[]>`
+      select count(*)::int as zonder from taken t where not exists (select 1 from taak_stops s where s.taak_id = t.id)`;
+    expect(zonder[0].zonder).toBe(0);
     expect((await haalTaak(id)).stops.map((s) => s.naam)).toEqual(['Nieuw']);
   });
 });

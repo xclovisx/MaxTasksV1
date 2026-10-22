@@ -22,10 +22,16 @@ export async function bewaarNieuweLocaties(tx: Tx, stops: StopInvoer[]): Promise
 
 export async function schrijfStops(tx: Tx, taakId: string, stops: Stop[]): Promise<void> {
   await tx`delete from taak_stops where taak_id = ${taakId}`;
+  // Stops zijn kopieen: een locatie die inmiddels verwijderd is (bijv. in een reekssjabloon) wordt een losse stop.
+  const gevraagd = [...new Set(stops.map((s) => s.locatieId).filter((x): x is string => x !== null))];
+  const bestaand = new Set(
+    gevraagd.length > 0 ? (await tx<{ id: string }[]>`select id from locaties where id in ${tx(gevraagd)}`).map((r) => r.id) : [],
+  );
   for (const [i, s] of stops.entries()) {
+    const locatieId = s.locatieId !== null && bestaand.has(s.locatieId) ? s.locatieId : null;
     await tx`
       insert into taak_stops (taak_id, volgorde, naam, adres, lat, lng, google_place_id, locatie_id)
-      values (${taakId}, ${i + 1}, ${s.naam}, ${s.adres}, ${s.lat}, ${s.lng}, ${s.googlePlaceId}, ${s.locatieId})`;
+      values (${taakId}, ${i + 1}, ${s.naam}, ${s.adres}, ${s.lat}, ${s.lng}, ${s.googlePlaceId}, ${locatieId})`;
   }
 }
 
