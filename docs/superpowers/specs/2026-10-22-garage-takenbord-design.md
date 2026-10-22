@@ -39,7 +39,7 @@ Alles draait met Docker Compose op een eigen server (VPS).
 | `caddy` | Reverse proxy met automatische HTTPS |
 
 **Belangrijkste keuzes**
-- **ORM:** Drizzle, met SQL-migraties in de repo.
+- **Database-toegang:** postgres.js met handgeschreven SQL en een eigen kleine migratierunner (`migrations/*.sql`). Dat geeft volledige controle over rollen, Row Level Security en views.
 - **Styling:** Tailwind CSS, donker thema (zie §9).
 - **Tijdzone:** alle datumlogica in `Europe/Amsterdam`. Taakdatums worden opgeslagen als `date` en tijden als `time`, dus zonder tijdzone.
 - **Externe diensten:** Google Places API (New) voor het aanvullen van adressen (browsersleutel, beperkt tot het domein) en Google Routes API voor de optimale volgorde (serversleutel, alleen in `app`). In Google Cloud wordt een budgetwaarschuwing ingesteld.
@@ -87,15 +87,15 @@ gebruikers      id, bedrijf_id (NULL = beheerder), naam, gebruikersnaam (uniek),
 sessies         id (hash van token), gebruiker_id, verloopt_op, aangemaakt_op
 borden          id, bedrijf_id, naam, gearchiveerd
 locaties        id, bedrijf_id, naam, adres, lat, lng, google_place_id, gebruik_teller
-taken           id, bord_id, titel, omschrijving, datum, tijd (NULL), prioriteit (laag|middel|hoog|zsm|nu),
-                status (open|bezig|klaar), oorspronkelijke_datum, gemist (bool),
+taken           id, bedrijf_id, bord_id, titel, omschrijving, datum, tijd (NULL), prioriteit (laag|middel|hoog|zsm|nu),
+                status (open|bezig|klaar), oorspronkelijke_datum (aanmaak-/reeksdatum, vast), uitgesteld_van (NULL), gemist (bool),
                 herhaling_id (NULL), afwijkend (bool: los gewijzigd t.o.v. de herhaling),
                 versie (int, voor gelijktijdige bewerkingen), aangemaakt_door, aangemaakt_op,
                 gewijzigd_door, gewijzigd_op, klaar_op
 taak_stops      id, taak_id, volgorde, naam, adres, lat, lng, locatie_id (NULL)    -- maximaal 9 per taak
-herhalingen     id, bord_id, titel, omschrijving, tijd, prioriteit, stops (jsonb),
+herhalingen     id, bedrijf_id, bord_id, titel, omschrijving, tijd, prioriteit, stops (jsonb),
                 type (dagelijks|wekelijks|maandelijks|weekdagen|elke_x_weken),
-                weekdagen (int[]), interval_weken (int), startdatum, actief, aangemaakt_door
+                weekdagen (int[]), interval_weken (int), startdatum, gegenereerd_tot (NULL), actief, aangemaakt_door
 taak_historie   id, taak_id, gebruiker_id, tijdstip, wijzigingen (jsonb: veld → {oud, nieuw})
 ```
 
@@ -123,14 +123,14 @@ Volgorde binnen een dag: prioriteit (Nu → Laag), dan tijd (taken met tijd eers
 
 ### 7.3 Doorschuiven
 De `worker` draait elke dag om 00:05 (Europe/Amsterdam), en ook bij het opstarten om gemiste runs in te halen:
-- Alle taken met status `open` of `bezig` en `datum < vandaag` krijgen als nieuwe `datum` de eerstvolgende werkdag van het bedrijf die op of na vandaag valt. `oorspronkelijke_datum` blijft staan, en de kaart toont "uitgesteld van <dag>".
+- Alle taken met status `open` of `bezig` en `datum < vandaag` krijgen als nieuwe `datum` de eerstvolgende werkdag van het bedrijf die op of na vandaag valt. `uitgesteld_van` krijgt de eerste oude datum (als die nog leeg is), en de kaart toont "uitgesteld van <dag>". Handmatig verplaatsen maakt `uitgesteld_van` weer leeg.
 - **Uitzondering:** hoort de taak bij een herhaling en staat er op die doeldatum al een exemplaar van dezelfde herhaling, dan blijft de taak op zijn oude datum staan en wordt `gemist = true` ("gemist").
 - Een doorgeschoven taak met prioriteit "zsm" of "nu" krijgt de extra markering "achterstallig".
 
 ### 7.4 Herhalingen
 - Typen: **dagelijks** (elke werkdag van het bedrijf), **wekelijks** (zelfde weekdag als de startdatum), **maandelijks** (zelfde dag van de maand; bestaat die dag niet, dan de laatste dag van de maand), **weekdagen** (gekozen dagen, bijvoorbeeld ma en do), **elke X weken** (op de weekdag van de startdatum, X ≥ 2).
 - Valt een berekende datum op een niet-werkdag (wekelijks, maandelijks, elke X weken), dan wordt het de eerstvolgende werkdag.
-- De `worker` maakt elke nacht de taken aan voor **de komende 14 dagen**. Dat gebeurt idempotent: per herhaling maximaal één taak per datum.
+- De `worker` maakt elke nacht de taken aan voor **de komende 14 dagen**. Dat gebeurt idempotent: per herhaling maximaal één taak per `oorspronkelijke_datum` (unieke index), en `gegenereerd_tot` onthoudt tot waar al is aangemaakt, zodat een los verwijderd exemplaar niet terugkomt.
 - **Eén exemplaar bewerken of verslepen** zet `afwijkend = true` en verandert alleen die taak.
 - **De herhaling bewerken** werkt alle toekomstige exemplaren bij die niet afwijkend en niet klaar zijn, en maakt ontbrekende exemplaren opnieuw aan.
 - **De herhaling stoppen** verwijdert alle toekomstige exemplaren die niet afwijkend en nog open zijn.
