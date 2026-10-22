@@ -46,12 +46,16 @@ export function TaakDialoog({ modus, isBeheerder, onSluit }: { modus: DialoogMod
   const [bezig, start] = useTransition();
   const titelRef = useRef<HTMLInputElement>(null);
 
+  const sluitRef = useRef(onSluit);
+  useEffect(() => { sluitRef.current = onSluit; });
+
+  // Titel alleen bij het openen focussen; hertekenen van de ouder mag de focus niet stelen.
   useEffect(() => {
     titelRef.current?.focus();
-    const bijToets = (e: KeyboardEvent) => { if (e.key === 'Escape') onSluit(); };
+    const bijToets = (e: KeyboardEvent) => { if (e.key === 'Escape') sluitRef.current(); };
     window.addEventListener('keydown', bijToets);
     return () => window.removeEventListener('keydown', bijToets);
-  }, [onSluit]);
+  }, []);
 
   const isReeks = Boolean(taak?.herhalingId);
   const reeksBewerken = isReeks && bereik === 'reeks';

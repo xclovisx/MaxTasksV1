@@ -33,6 +33,7 @@ export function DagKolom({
   taken,
   isVandaag,
   verborgenOpMobiel,
+  gearchiveerd,
   onNieuw,
   onOpen,
 }: {
@@ -40,6 +41,7 @@ export function DagKolom({
   taken: Taak[];
   isVandaag: boolean;
   verborgenOpMobiel: boolean;
+  gearchiveerd: boolean;
   onNieuw: () => void;
   onOpen: (taak: Taak) => void;
 }) {
@@ -69,8 +71,9 @@ export function DagKolom({
       <button
         type="button"
         onClick={onNieuw}
+        disabled={gearchiveerd}
         aria-label={`Taak toevoegen op ${dagnaam}`}
-        className="mt-2 flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-left text-sm text-tekst-flauw transition-colors hover:bg-kaart hover:text-tekst"
+        className="mt-2 flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-left text-sm text-tekst-flauw transition-colors hover:bg-kaart hover:text-tekst disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-tekst-flauw"
       >
         <PlusIcoon />Taak
       </button>

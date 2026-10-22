@@ -3,7 +3,7 @@
 import { DndContext, type DragEndEvent, MouseSensor, useSensor, useSensors } from '@dnd-kit/core';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { verplaatsTaakActie } from '@/app/(app)/bord/acties';
 import { PijlLinks, PijlRechts, PlusIcoon } from '@/components/iconen';
 import { Knop, Melding } from '@/components/ui';
@@ -35,6 +35,8 @@ export function WeekBord({ bordId, dagen, taken, vandaag, isBeheerder, gearchive
   const [verplaatst, setVerplaatst] = useState<Record<string, Datum>>({});
   const [fout, setFout] = useState<string | null>(null);
   const [actieveDag, setActieveDag] = useState<Datum>(dagen.includes(vandaag) ? vandaag : dagen[0]);
+  const dndId = useId();
+  const sluitDialoog = useCallback(() => setDialoog(null), []);
   const zojuistGesleept = useRef(false);
   const veegStart = useRef<number | null>(null);
   const sensors = useSensors(useSensor(MouseSensor, { activationConstraint: { distance: 6 } }));
@@ -99,7 +101,7 @@ export function WeekBord({ bordId, dagen, taken, vandaag, isBeheerder, gearchive
           <Link href={links.deze} className={cn(WEEKKNOP, 'px-3 text-sm')}>Deze week</Link>
           <Link href={links.volgende} className={WEEKKNOP} aria-label="Volgende week"><PijlRechts /></Link>
         </nav>
-        <Knop onClick={() => nieuweTaak(dagen.includes(vandaag) ? vandaag : actieveDag)} disabled={gearchiveerd}>
+        <Knop onClick={() => nieuweTaak(actieveDag)} disabled={gearchiveerd}>
           <PlusIcoon />Nieuwe taak
         </Knop>
       </div>
@@ -128,7 +130,17 @@ export function WeekBord({ bordId, dagen, taken, vandaag, isBeheerder, gearchive
       </div>
 
       <DndContext
+        id={dndId}
         sensors={sensors}
+        accessibility={{
+          screenReaderInstructions: { draggable: 'Sleep met de muis naar een andere dag om de taak te verplaatsen.' },
+          announcements: {
+            onDragStart: () => 'Taak opgepakt.',
+            onDragOver: ({ over }) => (over ? `Boven ${over.id}.` : 'Niet boven een dag.'),
+            onDragEnd: ({ over }) => (over ? `Taak verplaatst naar ${over.id}.` : 'Verplaatsen geannuleerd.'),
+            onDragCancel: () => 'Verplaatsen geannuleerd.',
+          },
+        }}
         onDragStart={() => { zojuistGesleept.current = true; }}
         onDragEnd={bijLoslaten}
         onDragCancel={() => { zojuistGesleept.current = false; }}
@@ -146,6 +158,7 @@ export function WeekBord({ bordId, dagen, taken, vandaag, isBeheerder, gearchive
               taken={perDag.get(d) ?? []}
               isVandaag={d === vandaag}
               verborgenOpMobiel={d !== actieveDag}
+              gearchiveerd={gearchiveerd}
               onNieuw={() => nieuweTaak(d)}
               onOpen={openTaak}
             />
@@ -153,7 +166,7 @@ export function WeekBord({ bordId, dagen, taken, vandaag, isBeheerder, gearchive
         </div>
       </DndContext>
 
-      {dialoog && <TaakDialoog modus={dialoog} isBeheerder={isBeheerder} onSluit={() => setDialoog(null)} />}
+      {dialoog && <TaakDialoog modus={dialoog} isBeheerder={isBeheerder} onSluit={sluitDialoog} />}
     </div>
   );
 }
