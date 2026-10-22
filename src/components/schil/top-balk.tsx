@@ -23,6 +23,7 @@ export function TopBalk({
         </Link>
         <BordKiezer borden={borden} />
         <nav className="ml-auto flex items-center gap-1 text-sm">
+          <Link href="/locaties" className={NAV}>Locaties</Link>
           {gebruiker.rol === 'beheerder' && (
             <>
               <Link href="/vandaag" className={NAV}>Vandaag</Link>

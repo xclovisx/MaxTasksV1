@@ -1,13 +1,15 @@
 import { wijzigInstellingenActie, wijzigWachtwoordActie } from '../acties';
 import { ActieFormulier } from '@/components/actie-formulier';
+import { GarageAdresKiezer } from '@/components/beheer/garage-adres-kiezer';
 import { WerkdagenKeuze } from '@/components/beheer/werkdagen-keuze';
 import { Invoer, Paneel, Veld } from '@/components/ui';
 import { haalInstellingen } from '@/lib/diensten/instellingen';
+import { lijstLocaties } from '@/lib/diensten/locaties';
 import { vereisBeheerderSessie } from '@/lib/web/huidige-gebruiker';
 
 export default async function InstellingenPagina() {
   await vereisBeheerderSessie();
-  const instellingen = await haalInstellingen();
+  const [instellingen, locaties] = await Promise.all([haalInstellingen(), lijstLocaties()]);
   return (
     <div className="space-y-4">
       <Paneel titel="Garage">
@@ -15,10 +17,11 @@ export default async function InstellingenPagina() {
           <div className="space-y-3">
             <div className="grid gap-3 sm:grid-cols-2">
               <Veld label="Naam"><Invoer name="naam" defaultValue={instellingen.naam} required maxLength={100} /></Veld>
-              <Veld label="Adres van de garage" hint="Wordt later het eindpunt van routes">
-                <Invoer name="garageAdres" defaultValue={instellingen.garageAdres ?? ''} maxLength={200} />
-              </Veld>
             </div>
+            <GarageAdresKiezer
+              opgeslagen={locaties}
+              begin={instellingen.garageAdres ? { adres: instellingen.garageAdres, lat: instellingen.garageLat, lng: instellingen.garageLng } : null}
+            />
             <WerkdagenKeuze gekozen={instellingen.werkdagen} />
           </div>
         </ActieFormulier>
