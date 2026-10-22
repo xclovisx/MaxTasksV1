@@ -19,15 +19,15 @@ beforeEach(async () => {
 
 describe('instellingen', () => {
   it('leest de standaardinstellingen', async () => {
-    expect(await haalInstellingen()).toEqual({ naam: 'Garage', garageAdres: null, werkdagen: [1, 2, 3, 4, 5] });
+    expect(await haalInstellingen()).toEqual({ naam: 'Garage', garageAdres: null, garageLat: null, garageLng: null, werkdagen: [1, 2, 3, 4, 5] });
   });
 
   it('wijzigt de instellingen en valideert werkdagen', async () => {
     await wijzigInstellingen(beheerder, { naam: 'Garage Jansen', garageAdres: 'Dorpsstraat 1', werkdagen: [1, 2, 3, 4, 5, 6] });
-    expect(await haalInstellingen()).toEqual({ naam: 'Garage Jansen', garageAdres: 'Dorpsstraat 1', werkdagen: [1, 2, 3, 4, 5, 6] });
+    expect(await haalInstellingen()).toEqual({ naam: 'Garage Jansen', garageAdres: 'Dorpsstraat 1', garageLat: null, garageLng: null, werkdagen: [1, 2, 3, 4, 5, 6] });
 
     await wijzigInstellingen(beheerder, { naam: 'B', garageAdres: '', werkdagen: [5, 1] });
-    expect(await haalInstellingen()).toEqual({ naam: 'B', garageAdres: null, werkdagen: [1, 5] });
+    expect(await haalInstellingen()).toEqual({ naam: 'B', garageAdres: null, garageLat: null, garageLng: null, werkdagen: [1, 5] });
 
     await expect(wijzigInstellingen(beheerder, { naam: 'B', werkdagen: [] })).rejects.toThrow();
     expect((await haalInstellingen()).werkdagen).toEqual([1, 5]);

@@ -3,10 +3,16 @@ import { db, pgIntArray } from '../db/client';
 import { instellingenSchema, type InstellingenInvoer } from '../domein/validatie';
 import { vereisBeheerder } from './rechten';
 
-export type Instellingen = { naam: string; garageAdres: string | null; werkdagen: number[] };
+export type Instellingen = {
+  naam: string;
+  garageAdres: string | null;
+  garageLat: number | null;
+  garageLng: number | null;
+  werkdagen: number[];
+};
 
 export async function haalInstellingen(): Promise<Instellingen> {
-  const [i] = await db()<Instellingen[]>`select naam, garage_adres, werkdagen from instellingen`;
+  const [i] = await db()<Instellingen[]>`select naam, garage_adres, garage_lat, garage_lng, werkdagen from instellingen`;
   return { ...i };
 }
 
@@ -14,5 +20,7 @@ export async function wijzigInstellingen(ctx: Context, invoer: InstellingenInvoe
   vereisBeheerder(ctx);
   const v = instellingenSchema.parse(invoer);
   await db()`
-    update instellingen set naam = ${v.naam}, garage_adres = ${v.garageAdres}, werkdagen = ${pgIntArray(v.werkdagen)}::int[]`;
+    update instellingen set
+      naam = ${v.naam}, garage_adres = ${v.garageAdres}, garage_lat = ${v.garageLat}, garage_lng = ${v.garageLng},
+      werkdagen = ${pgIntArray(v.werkdagen)}::int[]`;
 }

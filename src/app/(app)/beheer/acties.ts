@@ -21,10 +21,13 @@ function weergave(a: Activatie): ActivatieWeergave {
 }
 
 export async function wijzigInstellingenActie(f: FormData): Promise<ActieResultaat> {
+  const getal = (k: string) => (tekst(f, k) === '' ? null : Number(tekst(f, k)));
   return voerUit(async () => {
     await wijzigInstellingen(await ctx(), {
       naam: tekst(f, 'naam'),
       garageAdres: tekst(f, 'garageAdres'),
+      garageLat: getal('garageLat'),
+      garageLng: getal('garageLng'),
       werkdagen: f.getAll('werkdagen').map(Number),
     });
     return null;
