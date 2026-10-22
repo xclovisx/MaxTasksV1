@@ -1,9 +1,6 @@
 {
   "name": "garage-takenbord",
   "version": "1.0.0",
-  "directories": {
-    "doc": "docs"
-  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
