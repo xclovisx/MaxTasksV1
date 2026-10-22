@@ -1,0 +1,49 @@
+'use server';
+
+import { stopReeks, wijzigReeks } from '@/lib/diensten/herhalingen';
+import {
+  type HistorieRegel, maakTaak, taakHistorie, verplaatsTaak, verwijderTaak, wijzigTaak, zetStatus,
+} from '@/lib/diensten/taken';
+import type { Status } from '@/lib/domein/taak';
+import type { NieuweTaakInvoer, ReeksInvoer, TaakVeldenInvoer } from '@/lib/domein/validatie';
+import { type ActieResultaat, voerUit } from '@/lib/web/actie';
+import { contextVan, vereisGebruiker } from '@/lib/web/huidige-gebruiker';
+
+async function ctx() {
+  return contextVan(await vereisGebruiker());
+}
+
+export async function maakTaakActie(invoer: NieuweTaakInvoer): Promise<ActieResultaat<string>> {
+  return voerUit(async () => (await maakTaak(await ctx(), invoer)).id);
+}
+
+export async function wijzigTaakActie(id: string, versie: number, invoer: TaakVeldenInvoer): Promise<ActieResultaat> {
+  return voerUit(async () => { await wijzigTaak(await ctx(), id, versie, invoer); return null; });
+}
+
+export async function wijzigReeksActie(herhalingId: string, invoer: ReeksInvoer): Promise<ActieResultaat> {
+  return voerUit(async () => { await wijzigReeks(await ctx(), herhalingId, invoer); return null; });
+}
+
+export async function stopReeksActie(herhalingId: string): Promise<ActieResultaat> {
+  return voerUit(async () => { await stopReeks(await ctx(), herhalingId); return null; });
+}
+
+export async function verplaatsTaakActie(id: string, versie: number, datum: string): Promise<ActieResultaat> {
+  return voerUit(async () => { await verplaatsTaak(await ctx(), id, versie, datum); return null; });
+}
+
+export async function zetStatusActie(id: string, versie: number, status: Status): Promise<ActieResultaat> {
+  return voerUit(async () => { await zetStatus(await ctx(), id, versie, status); return null; });
+}
+
+export async function verwijderTaakActie(id: string): Promise<ActieResultaat> {
+  return voerUit(async () => { await verwijderTaak(await ctx(), id); return null; });
+}
+
+export async function historieActie(id: string): Promise<ActieResultaat<HistorieRegel[]>> {
+  return voerUit(async () => {
+    await ctx(); // alleen ingelogde gebruikers
+    return taakHistorie(id);
+  });
+}
