@@ -10,6 +10,7 @@ import {
 import { Conflict, GeenToegang, NietGevonden } from '../fouten';
 import { bordInTx } from './borden';
 import { maakReeks } from './herhalingen';
+import { bewaarNieuweLocaties, haalStops, schrijfStops, type Stop, stopsTekst, telGebruik } from './stops';
 
 export type Taak = {
   id: string;
@@ -36,6 +37,7 @@ export type Taak = {
   herhalingInterval: number | null;
   bordNaam: string;
   bordGearchiveerd: boolean;
+  stops: Stop[];
 };
 
 export type HistorieRegel = { tijdstip: Date; naam: string | null; wijzigingen: Record<string, { oud: unknown; nieuw: unknown }> };
@@ -77,8 +79,10 @@ export async function maakTaak(ctx: Context, invoer: NieuweTaakInvoer, vandaag: 
   const v = nieuweTaakSchema.parse(invoer);
   return transactie(async (tx) => {
     const bord = await bordInTx(tx, v.bordId);
+    const stops = await bewaarNieuweLocaties(tx, v.stops);
+    await telGebruik(tx, stops.map((s) => s.locatieId));
     if (v.herhaling) {
-      const id = await maakReeks(tx, ctx.gebruikerId, bord, v, v.herhaling, vandaag);
+      const id = await maakReeks(tx, ctx.gebruikerId, bord, { ...v, stops }, v.herhaling, vandaag);
       await meldWijziging(tx, bord.id);
       return { id };
     }
@@ -87,6 +91,7 @@ export async function maakTaak(ctx: Context, invoer: NieuweTaakInvoer, vandaag: 
       values (${bord.id}, ${v.titel}, ${v.omschrijving}, ${v.datum}, ${v.tijd}, ${v.prioriteit}, ${v.datum},
               ${ctx.gebruikerId}, ${ctx.gebruikerId})
       returning id`;
+    await schrijfStops(tx, t.id, stops);
     await meldWijziging(tx, bord.id);
     return { id: t.id };
   });
@@ -119,7 +124,7 @@ async function vergrendel(tx: Tx, id: string, versie: number): Promise<Vergrende
   return t;
 }
 
-const GEVOLGD = ['titel', 'omschrijving', 'datum', 'tijd', 'prioriteit', 'status'] as const;
+const GEVOLGD = ['titel', 'omschrijving', 'datum', 'tijd', 'prioriteit', 'status', 'stops'] as const;
 
 export function verschillen(oud: object, nieuw: object): Record<string, { oud: unknown; nieuw: unknown }> {
   const o = oud as Record<string, unknown>;
@@ -144,6 +149,10 @@ export async function wijzigTaak(ctx: Context, id: string, versie: number, invoe
   const v = taakVeldenSchema.parse(invoer);
   await transactie(async (tx) => {
     const oud = await vergrendel(tx, id, versie);
+    const oudeStops = await haalStops(tx, id);
+    const stops = await bewaarNieuweLocaties(tx, v.stops);
+    const alGekoppeld = new Set(oudeStops.map((s) => s.locatieId));
+    await telGebruik(tx, stops.map((s) => s.locatieId).filter((l) => !alGekoppeld.has(l)));
     const anderedag = oud.datum !== v.datum;
     await tx`
       update taken set
@@ -153,7 +162,8 @@ export async function wijzigTaak(ctx: Context, id: string, versie: number, invoe
         gemist = case when ${anderedag} then false else gemist end,
         versie = versie + 1, gewijzigd_door = ${ctx.gebruikerId}, gewijzigd_op = now()
       where id = ${id}`;
-    await logWijzigingen(tx, id, ctx.gebruikerId, oud, v);
+    await schrijfStops(tx, id, stops);
+    await logWijzigingen(tx, id, ctx.gebruikerId, { ...oud, stops: stopsTekst(oudeStops) }, { ...v, stops: stopsTekst(stops) });
     await meldWijziging(tx, oud.bordId);
   });
 }

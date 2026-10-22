@@ -6,6 +6,7 @@ import { datumsVoorHerhaling, type HerhalingType } from '../domein/herhaling';
 import type { Prioriteit } from '../domein/taak';
 import { isUuid, reeksSchema, type HerhalingInvoer, type ReeksInvoer } from '../domein/validatie';
 import { NietGevonden } from '../fouten';
+import { bewaarNieuweLocaties, schrijfStops, type Stop } from './stops';
 
 export const HORIZON_DAGEN = 14;
 
@@ -24,6 +25,7 @@ type HerhalingRij = {
   actief: boolean;
   aangemaaktDoor: string | null;
   werkdagen: number[];
+  stops: Stop[];
 };
 
 const laterVan = (a: Datum, b: Datum): Datum => (a > b ? a : b);
@@ -31,7 +33,7 @@ const laterVan = (a: Datum, b: Datum): Datum => (a > b ? a : b);
 export async function genereerExemplaren(tx: Tx, herhalingId: string, vandaag: Datum): Promise<number> {
   const [h] = await tx<HerhalingRij[]>`
     select h.id, h.bord_id, h.titel, h.omschrijving, h.tijd, h.prioriteit, h.type, h.weekdagen,
-           h.interval_weken, h.startdatum, h.gegenereerd_tot, h.actief, h.aangemaakt_door,
+           h.interval_weken, h.startdatum, h.gegenereerd_tot, h.actief, h.aangemaakt_door, h.stops,
            (select werkdagen from instellingen) as werkdagen
     from herhalingen h
     where h.id = ${herhalingId}
@@ -46,13 +48,14 @@ export async function genereerExemplaren(tx: Tx, herhalingId: string, vandaag: D
   );
   let aantal = 0;
   for (const d of datums) {
-    const r = await tx`
+    const r = await tx<{ id: string }[]>`
       insert into taken (bord_id, titel, omschrijving, datum, tijd, prioriteit, oorspronkelijke_datum,
                          herhaling_id, aangemaakt_door, gewijzigd_door)
       values (${h.bordId}, ${h.titel}, ${h.omschrijving}, ${d}, ${h.tijd}, ${h.prioriteit}, ${d},
               ${h.id}, ${h.aangemaaktDoor}, ${h.aangemaaktDoor})
       on conflict (herhaling_id, oorspronkelijke_datum) where herhaling_id is not null do nothing
       returning id`;
+    if (r.length > 0 && h.stops.length > 0) await schrijfStops(tx, r[0].id, h.stops);
     aantal += r.length;
   }
   await tx`update herhalingen set gegenereerd_tot = ${tot} where id = ${h.id}`;
@@ -64,14 +67,15 @@ export async function maakReeks(
   tx: Tx,
   gebruikerId: string,
   bord: { id: string },
-  velden: { titel: string; omschrijving: string; datum: Datum; tijd: string | null; prioriteit: Prioriteit },
+  velden: { titel: string; omschrijving: string; datum: Datum; tijd: string | null; prioriteit: Prioriteit; stops: Stop[] },
   regel: HerhalingInvoer,
   vandaag: Datum,
 ): Promise<string> {
   const [h] = await tx<{ id: string }[]>`
-    insert into herhalingen (bord_id, titel, omschrijving, tijd, prioriteit, type, weekdagen, interval_weken, startdatum, aangemaakt_door)
+    insert into herhalingen (bord_id, titel, omschrijving, tijd, prioriteit, type, weekdagen, interval_weken, startdatum, aangemaakt_door, stops)
     values (${bord.id}, ${velden.titel}, ${velden.omschrijving}, ${velden.tijd}, ${velden.prioriteit},
-            ${regel.type}, ${pgIntArray(regel.weekdagen)}::int[], ${regel.intervalWeken}, ${velden.datum}, ${gebruikerId})
+            ${regel.type}, ${pgIntArray(regel.weekdagen)}::int[], ${regel.intervalWeken}, ${velden.datum}, ${gebruikerId},
+            ${JSON.stringify(velden.stops)}::text::jsonb)
     returning id`;
   await genereerExemplaren(tx, h.id, vandaag);
   const [eerste] = await tx<{ id: string }[]>`select id from taken where herhaling_id = ${h.id} order by datum limit 1`;
@@ -87,20 +91,24 @@ export async function wijzigReeks(ctx: Context, herhalingId: string, invoer: Ree
   const v = reeksSchema.parse(invoer);
   if (!isUuid(herhalingId)) throw new NietGevonden('Reeks niet gevonden');
   await transactie(async (tx) => {
+    const stops = await bewaarNieuweLocaties(tx, v.stops);
     const [h] = await tx<{ bordId: string }[]>`
       update herhalingen set
         titel = ${v.titel}, omschrijving = ${v.omschrijving}, tijd = ${v.tijd}, prioriteit = ${v.prioriteit},
         type = ${v.herhaling.type}, weekdagen = ${pgIntArray(v.herhaling.weekdagen)}::int[], interval_weken = ${v.herhaling.intervalWeken},
+        stops = ${JSON.stringify(stops)}::text::jsonb,
         gegenereerd_tot = ${plusDagen(vandaag, -1)}
       where id = ${herhalingId}
       returning bord_id`;
     if (!h) throw new NietGevonden('Reeks niet gevonden');
-    await tx`
+    const bijgewerkt = await tx<{ id: string }[]>`
       update taken set
         titel = ${v.titel}, omschrijving = ${v.omschrijving}, tijd = ${v.tijd}, prioriteit = ${v.prioriteit},
         versie = versie + 1, gewijzigd_door = ${ctx.gebruikerId}, gewijzigd_op = now()
       where herhaling_id = ${herhalingId} and datum >= ${vandaag} and not afwijkend
-        and (status = 'bezig' or (status = 'open' and uitgesteld_van is not null))`;
+        and (status = 'bezig' or (status = 'open' and uitgesteld_van is not null))
+      returning id`;
+    for (const t of bijgewerkt) await schrijfStops(tx, t.id, stops);
     await OPEN_TOEKOMST(tx, herhalingId, vandaag);
     await genereerExemplaren(tx, herhalingId, vandaag);
     await meldWijziging(tx, h.bordId);
