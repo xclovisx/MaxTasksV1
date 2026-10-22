@@ -33,6 +33,11 @@ export async function sluitDb(): Promise<void> {
   }
 }
 
+/** Voert fn uit in één databasetransactie. */
+export async function transactie<T>(fn: (tx: Tx) => Promise<T>): Promise<T> {
+  return (await db().begin((tx) => fn(tx))) as T;
+}
+
 /** Postgres-arrayliteral voor int[]-parameters, bijv. `${pgIntArray([1,2])}::int[]`. */
 export function pgIntArray(getallen: number[]): string {
   return `{${getallen.map((g) => Math.trunc(g)).join(',')}}`;

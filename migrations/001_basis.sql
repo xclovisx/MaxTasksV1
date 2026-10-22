@@ -1,15 +1,14 @@
-create table bedrijven (
-  id uuid primary key default gen_random_uuid(),
-  naam text not null,
+create table instellingen (
+  id boolean primary key default true check (id),
+  naam text not null default 'Garage',
   garage_adres text,
   werkdagen int[] not null default '{1,2,3,4,5}',
-  aangemaakt_op timestamptz not null default now(),
   constraint werkdagen_geldig check (cardinality(werkdagen) between 1 and 7 and werkdagen <@ array[1,2,3,4,5,6,7])
 );
+insert into instellingen default values;
 
 create table gebruikers (
   id uuid primary key default gen_random_uuid(),
-  bedrijf_id uuid references bedrijven(id) on delete cascade,
   naam text not null,
   gebruikersnaam text not null unique,
   wachtwoord_hash text,
@@ -21,7 +20,6 @@ create table gebruikers (
   activatie_code_hash text,
   activatie_verloopt_op timestamptz,
   aangemaakt_op timestamptz not null default now(),
-  constraint rol_bedrijf check ((rol = 'beheerder' and bedrijf_id is null) or (rol = 'medewerker' and bedrijf_id is not null)),
   constraint gebruikersnaam_klein check (gebruikersnaam = lower(gebruikersnaam))
 );
 
@@ -35,15 +33,14 @@ create index sessies_gebruiker on sessies (gebruiker_id);
 
 create table borden (
   id uuid primary key default gen_random_uuid(),
-  bedrijf_id uuid not null references bedrijven(id) on delete cascade,
   naam text not null,
   gearchiveerd boolean not null default false,
   aangemaakt_op timestamptz not null default now()
 );
+insert into borden (naam) values ('Takenbord');
 
 create table herhalingen (
   id uuid primary key default gen_random_uuid(),
-  bedrijf_id uuid not null references bedrijven(id) on delete cascade,
   bord_id uuid not null references borden(id) on delete cascade,
   titel text not null,
   omschrijving text not null default '',
@@ -61,7 +58,6 @@ create table herhalingen (
 
 create table taken (
   id uuid primary key default gen_random_uuid(),
-  bedrijf_id uuid not null references bedrijven(id) on delete cascade,
   bord_id uuid not null references borden(id) on delete cascade,
   titel text not null,
   omschrijving text not null default '',
@@ -82,7 +78,7 @@ create table taken (
   klaar_op timestamptz
 );
 create index taken_bord_datum on taken (bord_id, datum);
-create index taken_bedrijf_datum on taken (bedrijf_id, datum);
+create index taken_datum on taken (datum);
 create unique index taken_herhaling_datum on taken (herhaling_id, oorspronkelijke_datum) where herhaling_id is not null;
 
 create table taak_historie (
@@ -94,9 +90,9 @@ create table taak_historie (
 );
 create index taak_historie_taak on taak_historie (taak_id, tijdstip);
 
-create view taken_weergave with (security_invoker = true) as
+create view taken_weergave as
 select
-  t.id, t.bedrijf_id, t.bord_id, t.titel, t.omschrijving, t.datum,
+  t.id, t.bord_id, t.titel, t.omschrijving, t.datum,
   to_char(t.tijd, 'HH24:MI') as tijd,
   t.prioriteit, t.status, t.oorspronkelijke_datum, t.uitgesteld_van, t.gemist,
   t.herhaling_id, t.afwijkend, t.versie, t.aangemaakt_op, t.gewijzigd_op, t.klaar_op,
@@ -105,11 +101,9 @@ select
   h.type as herhaling_type,
   h.weekdagen as herhaling_weekdagen,
   h.interval_weken as herhaling_interval,
-  bd.naam as bedrijf_naam,
   bo.naam as bord_naam,
   bo.gearchiveerd as bord_gearchiveerd
 from taken t
-join bedrijven bd on bd.id = t.bedrijf_id
 join borden bo on bo.id = t.bord_id
 left join gebruikers ag on ag.id = t.aangemaakt_door
 left join gebruikers gg on gg.id = t.gewijzigd_door
