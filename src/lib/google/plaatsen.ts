@@ -26,7 +26,14 @@ async function vraag(haal: typeof fetch, url: string, init: RequestInit): Promis
     throw new GoogleNietBeschikbaar();
   }
   if (!r.ok) throw new GoogleNietBeschikbaar();
-  return r.json();
+  let data: unknown;
+  try {
+    data = await r.json();
+  } catch {
+    throw new GoogleNietBeschikbaar();
+  }
+  if (typeof data !== 'object' || data === null) throw new GoogleNietBeschikbaar();
+  return data;
 }
 
 type AutocompleteAntwoord = {
@@ -50,7 +57,7 @@ export async function zoekPlaatsen(invoer: string, sessie: string, haal: typeof 
   return (data.suggestions ?? [])
     .flatMap((s) => {
       const p = s.placePrediction;
-      if (!p) return [];
+      if (!p || typeof p.placeId !== 'string') return [];
       return [{
         placeId: p.placeId,
         hoofdtekst: p.structuredFormat?.mainText?.text ?? p.text?.text ?? '',
@@ -73,12 +80,15 @@ export async function plaatsDetails(placeId: string, sessie: string, haal: typeo
   const d = (await vraag(haal, url, {
     headers: { 'X-Goog-Api-Key': sleutel(), 'X-Goog-FieldMask': 'id,displayName,formattedAddress,location' },
   })) as DetailsAntwoord;
-  if (!d.location || !d.formattedAddress) throw new GoogleNietBeschikbaar();
+  const loc = d.location;
+  if (!d.formattedAddress || !loc || !Number.isFinite(loc.latitude) || !Number.isFinite(loc.longitude)) {
+    throw new GoogleNietBeschikbaar();
+  }
   return {
     placeId: d.id ?? placeId,
     naam: d.displayName?.text ?? d.formattedAddress,
     adres: d.formattedAddress,
-    lat: d.location.latitude,
-    lng: d.location.longitude,
+    lat: loc.latitude,
+    lng: loc.longitude,
   };
 }

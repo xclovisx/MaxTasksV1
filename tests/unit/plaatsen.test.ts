@@ -8,11 +8,20 @@ describe('Google Places-client', () => {
   beforeEach(() => { process.env.GOOGLE_MAPS_API_KEY = 'test-sleutel'; });
   afterEach(() => { delete process.env.GOOGLE_MAPS_API_KEY; });
 
-  it('zonder sleutel: niet beschikbaar', async () => {
+  it('zonder sleutel: niet beschikbaar, zonder Google aan te roepen', async () => {
     delete process.env.GOOGLE_MAPS_API_KEY;
-    await expect(zoekPlaatsen('Dorpsstraat', 's1', antwoord({}))).rejects.toThrow('Adres zoeken tijdelijk niet beschikbaar');
+    const haal = antwoord({});
+    await expect(zoekPlaatsen('Dorpsstraat', 's1', haal)).rejects.toThrow('Adres zoeken tijdelijk niet beschikbaar');
     process.env.GOOGLE_MAPS_API_KEY = '';
-    await expect(zoekPlaatsen('Dorpsstraat', 's1', antwoord({}))).rejects.toBeInstanceOf(GoogleNietBeschikbaar);
+    await expect(zoekPlaatsen('Dorpsstraat', 's1', haal)).rejects.toBeInstanceOf(GoogleNietBeschikbaar);
+    expect(haal).not.toHaveBeenCalled();
+  });
+
+  it('plaatsDetails zonder sleutel: niet beschikbaar, zonder Google aan te roepen', async () => {
+    delete process.env.GOOGLE_MAPS_API_KEY;
+    const haal = antwoord({});
+    await expect(plaatsDetails('p1', 's1', haal)).rejects.toBeInstanceOf(GoogleNietBeschikbaar);
+    expect(haal).not.toHaveBeenCalled();
   });
 
   it('korte invoer roept Google niet aan', async () => {
@@ -64,5 +73,42 @@ describe('Google Places-client', () => {
   it('weigert een vreemde placeId en onvolledige details', async () => {
     await expect(plaatsDetails('../x', 's', antwoord({}))).rejects.toThrow('Ongeldige plaats');
     await expect(plaatsDetails('p1', 's', antwoord({ id: 'p1' }))).rejects.toBeInstanceOf(GoogleNietBeschikbaar);
+  });
+
+  it('slaat suggesties zonder placeId over', async () => {
+    const haal = antwoord({
+      suggestions: [
+        { placePrediction: { text: { text: 'Zonder id' } } },
+        { placePrediction: { placeId: 'p3', text: { text: 'Met id' } } },
+      ],
+    });
+    expect(await zoekPlaatsen('Dorpsstraat', 's', haal)).toEqual([{ placeId: 'p3', hoofdtekst: 'Met id', subtekst: '' }]);
+  });
+
+  it('details met ongeldige coördinaten: niet beschikbaar', async () => {
+    const zonderLat = antwoord({ id: 'p1', formattedAddress: 'Industrieweg 12', location: { longitude: 4.776 } });
+    await expect(plaatsDetails('p1', 's', zonderLat)).rejects.toBeInstanceOf(GoogleNietBeschikbaar);
+    const tekstLat = antwoord({ id: 'p1', formattedAddress: 'Industrieweg 12', location: { latitude: 'x', longitude: 4.776 } });
+    await expect(plaatsDetails('p1', 's', tekstLat)).rejects.toBeInstanceOf(GoogleNietBeschikbaar);
+  });
+
+  it('antwoord dat geen JSON is: niet beschikbaar', async () => {
+    const html = vi.fn(async () => new Response('<html>', { status: 200 })) as unknown as typeof fetch;
+    await expect(zoekPlaatsen('Dorpsstraat', 's', html)).rejects.toBeInstanceOf(GoogleNietBeschikbaar);
+    const html2 = vi.fn(async () => new Response('<html>', { status: 200 })) as unknown as typeof fetch;
+    await expect(plaatsDetails('p1', 's', html2)).rejects.toBeInstanceOf(GoogleNietBeschikbaar);
+  });
+
+  it('timeout tijdens het lezen van het antwoord: niet beschikbaar', async () => {
+    const leesfout = vi.fn(async () => ({
+      ok: true,
+      json: async () => { throw new DOMException('timeout', 'TimeoutError'); },
+    })) as unknown as typeof fetch;
+    await expect(zoekPlaatsen('Dorpsstraat', 's', leesfout)).rejects.toBeInstanceOf(GoogleNietBeschikbaar);
+  });
+
+  it('antwoord dat geen object is: niet beschikbaar', async () => {
+    await expect(zoekPlaatsen('Dorpsstraat', 's', antwoord(null))).rejects.toBeInstanceOf(GoogleNietBeschikbaar);
+    await expect(plaatsDetails('p1', 's', antwoord(null))).rejects.toBeInstanceOf(GoogleNietBeschikbaar);
   });
 });
