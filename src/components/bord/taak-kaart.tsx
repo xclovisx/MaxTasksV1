@@ -1,6 +1,7 @@
-import { HerhaalIcoon, KlokIcoon } from '@/components/iconen';
+import { HerhaalIcoon, KlokIcoon, PinIcoon } from '@/components/iconen';
 import { cn } from '@/lib/cn';
 import type { Taak } from '@/lib/diensten/taken';
+import { stopsSamenvatting } from '@/lib/domein/navigatie';
 import { PRIORITEIT_LABEL, STATUS_LABEL, taakLabels } from '@/lib/domein/taak';
 import { herhalingKort, LABEL_STIJL, PRIO_STIP, STATUS_PIL } from './stijl';
 
@@ -8,7 +9,8 @@ export function TaakKaartInhoud({ taak, toonBord = false }: { taak: Taak; toonBo
   const klaar = taak.status === 'klaar';
   const herhaling = herhalingKort(taak);
   const labels = taakLabels(taak);
-  const heeftMeta = Boolean(taak.tijd || herhaling || taak.status !== 'open' || labels.length);
+  const plek = stopsSamenvatting(taak.stops);
+  const heeftMeta = Boolean(taak.tijd || plek || herhaling || taak.status !== 'open' || labels.length);
   return (
     <div
       className={cn(
@@ -36,6 +38,7 @@ export function TaakKaartInhoud({ taak, toonBord = false }: { taak: Taak; toonBo
       {heeftMeta && (
         <div className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-tekst-zacht">
           {taak.tijd && <span className="inline-flex items-center gap-1"><KlokIcoon />{taak.tijd}</span>}
+          {plek && <span className="inline-flex min-w-0 items-center gap-1"><PinIcoon /><span className="truncate">{plek}</span></span>}
           {herhaling && <span className="inline-flex items-center gap-1"><HerhaalIcoon />{herhaling}</span>}
           {taak.status !== 'open' && (
             <span className={cn('rounded px-1.5 py-px font-semibold', STATUS_PIL[taak.status])}>{STATUS_LABEL[taak.status]}</span>

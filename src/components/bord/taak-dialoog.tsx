@@ -5,15 +5,20 @@ import { type FormEvent, useEffect, useRef, useState, useTransition } from 'reac
 import {
   historieActie, maakTaakActie, stopReeksActie, verwijderTaakActie, wijzigReeksActie, wijzigTaakActie, zetStatusActie,
 } from '@/app/(app)/bord/acties';
+import { locatieOverzichtActie } from '@/app/(app)/locaties/acties';
 import { KruisIcoon } from '@/components/iconen';
 import { Invoer, Keuzelijst, Knop, Melding, Tekstvak, Veld } from '@/components/ui';
 import { cn } from '@/lib/cn';
+import type { Locatie } from '@/lib/diensten/locaties';
 import type { HistorieRegel, Taak } from '@/lib/diensten/taken';
 import { DAGNAMEN_KORT, type Datum, formatMoment, weekdag } from '@/lib/domein/datums';
 import { HERHALING_LABELS, type HerhalingType } from '@/lib/domein/herhaling';
+import { navigatieUrl } from '@/lib/domein/navigatie';
 import { PRIORITEIT_LABEL, PRIORITEITEN, type Prioriteit, type Status, STATUS_LABEL, STATUSSEN } from '@/lib/domein/taak';
+import type { StopInvoer } from '@/lib/domein/validatie';
 import type { ActieResultaat } from '@/lib/web/actie';
 import { PRIO_KNOP_AAN, STATUS_PIL } from './stijl';
+import { StopsEditor } from './stops-editor';
 
 export type DialoogModus = { soort: 'nieuw'; bordId: string; datum: Datum } | { soort: 'bewerk'; taak: Taak };
 
@@ -21,6 +26,7 @@ type Herhalen = 'geen' | HerhalingType;
 
 const VELDNAAM: Record<string, string> = {
   titel: 'titel', omschrijving: 'omschrijving', datum: 'dag', tijd: 'tijd', prioriteit: 'prioriteit', status: 'status',
+  stops: 'locaties',
 };
 
 const toon = (w: unknown) => (w === null || w === '' ? '–' : String(w));
@@ -35,6 +41,8 @@ export function TaakDialoog({ modus, isBeheerder, onSluit }: { modus: DialoogMod
   const [datum, setDatum] = useState<Datum>(startDatum);
   const [tijd, setTijd] = useState(taak?.tijd ?? '');
   const [prioriteit, setPrioriteit] = useState<Prioriteit>(taak?.prioriteit ?? 'middel');
+  const [stops, setStops] = useState<StopInvoer[]>((taak?.stops ?? []).map((s) => ({ ...s, bewaar: false })));
+  const [locaties, setLocaties] = useState<{ alle: Locatie[]; vaak: Locatie[] }>({ alle: [], vaak: [] });
   const [herhalen, setHerhalen] = useState<Herhalen>(taak?.herhalingType ?? 'geen');
   const [weekdagen, setWeekdagen] = useState<number[]>(
     taak?.herhalingWeekdagen?.length ? taak.herhalingWeekdagen : [weekdag(startDatum)],
@@ -55,6 +63,12 @@ export function TaakDialoog({ modus, isBeheerder, onSluit }: { modus: DialoogMod
     const bijToets = (e: KeyboardEvent) => { if (e.key === 'Escape') sluitRef.current(); };
     window.addEventListener('keydown', bijToets);
     return () => window.removeEventListener('keydown', bijToets);
+  }, []);
+
+  useEffect(() => {
+    let actueel = true;
+    void locatieOverzichtActie().then((r) => { if (actueel && r.ok) setLocaties(r.data); });
+    return () => { actueel = false; };
   }, []);
 
   const isReeks = Boolean(taak?.herhalingId);
@@ -82,7 +96,7 @@ export function TaakDialoog({ modus, isBeheerder, onSluit }: { modus: DialoogMod
   function opslaan(e: FormEvent) {
     e.preventDefault();
     setFout(null);
-    const velden = { titel, omschrijving, datum, tijd: tijd || null, prioriteit };
+    const velden = { titel, omschrijving, datum, tijd: tijd || null, prioriteit, stops };
     start(async () => {
       if (modus.soort === 'nieuw') {
         afronden(await maakTaakActie({ ...velden, bordId: modus.bordId, herhaling: regel() }));
@@ -95,7 +109,7 @@ export function TaakDialoog({ modus, isBeheerder, onSluit }: { modus: DialoogMod
           setFout({ tekst: 'Kies hoe de reeks herhaalt, of gebruik "Reeks stoppen".', conflict: false });
           return;
         }
-        afronden(await wijzigReeksActie(taak.herhalingId, { titel, omschrijving, tijd: tijd || null, prioriteit, herhaling: r }));
+        afronden(await wijzigReeksActie(taak.herhalingId, { titel, omschrijving, tijd: tijd || null, prioriteit, stops, herhaling: r }));
         return;
       }
       afronden(await wijzigTaakActie(taak.id, taak.versie, velden));
@@ -168,6 +182,31 @@ export function TaakDialoog({ modus, isBeheerder, onSluit }: { modus: DialoogMod
           </div>
         )}
 
+        {taak && taak.stops.length > 0 && (
+          <div className="mb-5 rounded-lg border border-rand bg-achtergrond p-3">
+            <span className="mb-2 block text-xs font-medium text-tekst-zacht">{taak.stops.length === 1 ? 'Locatie' : 'Locaties'}</span>
+            <ol className="space-y-2">
+              {taak.stops.map((s, i) => (
+                <li key={`${i}-${s.adres}`} className="flex items-center gap-2 text-sm">
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-medium">{taak.stops.length > 1 ? `${i + 1}. ` : ''}{s.naam}</span>
+                    <span className="block truncate text-xs text-tekst-flauw">{s.adres}</span>
+                  </span>
+                  <a
+                    href={navigatieUrl(s)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={`Navigeer naar ${s.naam}`}
+                    className="shrink-0 rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-accent-donker hover:bg-accent/90"
+                  >
+                    Navigeer
+                  </a>
+                </li>
+              ))}
+            </ol>
+          </div>
+        )}
+
         {isReeks && (
           <div className="mb-4 grid grid-cols-2 gap-1 rounded-lg bg-achtergrond p-1" role="radiogroup" aria-label="Wat wil je bewerken?">
             {(['deze', 'reeks'] as const).map((b) => (
@@ -219,6 +258,7 @@ export function TaakDialoog({ modus, isBeheerder, onSluit }: { modus: DialoogMod
               ))}
             </div>
           </div>
+          <StopsEditor stops={stops} onChange={setStops} opgeslagen={locaties.alle} vaakGebruikt={locaties.vaak} />
           <div className="space-y-3">
             <Veld label="Herhalen">
               <Keuzelijst value={herhalen} onChange={(e) => setHerhalen(e.target.value as Herhalen)} disabled={!herhalingBewerkbaar}>
