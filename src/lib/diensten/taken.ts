@@ -7,8 +7,9 @@ import { type Prioriteit, type Status, vergelijkTaken } from '../domein/taak';
 import {
   isUuid, nieuweTaakSchema, statusSchema, taakVeldenSchema, type NieuweTaakInvoer, type TaakVeldenInvoer,
 } from '../domein/validatie';
-import { Conflict, GeenToegang, NietGevonden, Ongeldig } from '../fouten';
+import { Conflict, GeenToegang, NietGevonden } from '../fouten';
 import { bordInTx } from './borden';
+import { maakReeks } from './herhalingen';
 
 export type Taak = {
   id: string;
@@ -74,10 +75,13 @@ export async function taakHistorie(id: string): Promise<HistorieRegel[]> {
 
 export async function maakTaak(ctx: Context, invoer: NieuweTaakInvoer, vandaag: Datum = vandaagInAmsterdam()): Promise<{ id: string }> {
   const v = nieuweTaakSchema.parse(invoer);
-  void vandaag; // gebruikt door herhalingen (Task 8)
   return transactie(async (tx) => {
     const bord = await bordInTx(tx, v.bordId);
-    if (v.herhaling) throw new Ongeldig('Herhalen volgt in Task 8');
+    if (v.herhaling) {
+      const id = await maakReeks(tx, ctx.gebruikerId, bord, v, v.herhaling, vandaag);
+      await meldWijziging(tx, bord.id);
+      return { id };
+    }
     const [t] = await tx<{ id: string }[]>`
       insert into taken (bord_id, titel, omschrijving, datum, tijd, prioriteit, oorspronkelijke_datum, aangemaakt_door, gewijzigd_door)
       values (${bord.id}, ${v.titel}, ${v.omschrijving}, ${v.datum}, ${v.tijd}, ${v.prioriteit}, ${v.datum},
