@@ -7,12 +7,30 @@ const werkdag = z.number().int().min(1).max(7);
 export const prioriteitSchema = z.enum(['laag', 'middel', 'hoog', 'zsm', 'nu']);
 export const statusSchema = z.enum(['open', 'bezig', 'klaar']);
 
+export const MAX_STOPS = 9;
+
+export const locatieSchema = z.object({
+  naam: z.string().trim().min(1, 'Naam van de locatie is verplicht').max(100),
+  adres: z.string().trim().min(1, 'Adres is verplicht').max(300),
+  lat: z.number().min(-90).max(90),
+  lng: z.number().min(-180).max(180),
+  googlePlaceId: z.string().max(300).nullable().default(null),
+});
+
+export const stopSchema = locatieSchema.extend({
+  locatieId: z.string().uuid().nullable().default(null),
+  bewaar: z.boolean().default(false),
+});
+
+export const stopsSchema = z.array(stopSchema).max(MAX_STOPS, `Maximaal ${MAX_STOPS} locaties`).default([]);
+
 export const taakVeldenSchema = z.object({
   titel: z.string().trim().min(1, 'Titel is verplicht').max(200, 'Titel is te lang'),
   omschrijving: z.string().trim().max(2000, 'Omschrijving is te lang').default(''),
   datum,
   tijd,
   prioriteit: prioriteitSchema,
+  stops: stopsSchema,
 });
 
 export const herhalingSchema = z
@@ -31,11 +49,15 @@ export const nieuweTaakSchema = taakVeldenSchema.extend({
 
 export const reeksSchema = taakVeldenSchema.omit({ datum: true }).extend({ herhaling: herhalingSchema });
 
-export const instellingenSchema = z.object({
-  naam: z.string().trim().min(1, 'Naam is verplicht').max(100),
-  garageAdres: z.string().trim().max(200).nullable().optional().transform((v) => v || null),
-  werkdagen: z.array(werkdag).min(1, 'Kies minstens één werkdag').transform((w) => [...new Set(w)].sort((a, b) => a - b)),
-});
+export const instellingenSchema = z
+  .object({
+    naam: z.string().trim().min(1, 'Naam is verplicht').max(100),
+    garageAdres: z.string().trim().max(300).nullable().optional().transform((v) => v || null),
+    garageLat: z.number().min(-90).max(90).nullable().optional().transform((v) => v ?? null),
+    garageLng: z.number().min(-180).max(180).nullable().optional().transform((v) => v ?? null),
+    werkdagen: z.array(werkdag).min(1, 'Kies minstens één werkdag').transform((w) => [...new Set(w)].sort((a, b) => a - b)),
+  })
+  .transform((i) => (i.garageAdres ? i : { ...i, garageLat: null, garageLng: null }));
 
 export const bordNaamSchema = z.string().trim().min(1, 'Naam is verplicht').max(60);
 
@@ -58,3 +80,5 @@ export type ReeksInvoer = z.input<typeof reeksSchema>;
 export type InstellingenInvoer = z.input<typeof instellingenSchema>;
 export type MedewerkerInvoer = z.input<typeof medewerkerSchema>;
 export type HerhalingInvoer = z.output<typeof herhalingSchema>;
+export type LocatieInvoer = z.input<typeof locatieSchema>;
+export type StopInvoer = z.output<typeof stopSchema>;
