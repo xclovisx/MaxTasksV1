@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  dagenVoorWeek, eersteWerkdagVanaf, isoWeek, kortDatumLabel, laatsteDagVanMaand, maandagVan, parseWeekCode,
+  dagenVoorWeek, eersteWerkdagVanaf, isGeldigeDatum, isoWeek, kortDatumLabel, laatsteDagVanMaand, maandagVan, parseWeekCode,
   plusDagen, vandaagInAmsterdam, verschilInDagen, weekCode, weekdag,
 } from '@/lib/domein/datums';
 
@@ -91,5 +91,20 @@ describe('dagenVoorWeek', () => {
 
   it('negeert taakdatums buiten de week', () => {
     expect(dagenVoorWeek(maandag, [1], ['2026-10-18', '2026-10-26', '2026-11-30'])).toEqual(['2026-10-19']);
+  });
+});
+
+describe('isGeldigeDatum', () => {
+  it('accepteert bestaande datums in YYYY-MM-DD', () => {
+    expect(isGeldigeDatum('2026-10-22')).toBe(true);
+    expect(isGeldigeDatum('2028-02-29')).toBe(true);
+  });
+
+  it('weigert onmogelijke datums en andere formaten', () => {
+    expect(isGeldigeDatum('2026-02-29')).toBe(false);
+    expect(isGeldigeDatum('2026-13-45')).toBe(false);
+    expect(isGeldigeDatum('22-10-2026')).toBe(false);
+    expect(isGeldigeDatum('2026-10-22x')).toBe(false);
+    expect(isGeldigeDatum('')).toBe(false);
   });
 });

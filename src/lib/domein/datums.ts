@@ -19,6 +19,11 @@ export function plusDagen(d: Datum, n: number): Datum {
   return vanUtc(naarUtc(d) + n * DAG_MS);
 }
 
+/** 'YYYY-MM-DD' én een datum die echt bestaat (geen 30 februari). */
+export function isGeldigeDatum(d: string): d is Datum {
+  return /^\d{4}-\d{2}-\d{2}$/.test(d) && plusDagen(d, 0) === d;
+}
+
 export function weekdag(d: Datum): number {
   const w = new Date(naarUtc(d)).getUTCDay();
   return w === 0 ? 7 : w;

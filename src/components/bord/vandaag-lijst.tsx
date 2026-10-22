@@ -5,13 +5,13 @@ import type { Taak } from '@/lib/diensten/taken';
 import { TaakDialoog } from './taak-dialoog';
 import { TaakKaartInhoud } from './taak-kaart';
 
-export function VandaagLijst({ taken }: { taken: Taak[] }) {
+export function VandaagLijst({ taken, legeTekst = 'Geen taken voor vandaag.' }: { taken: Taak[]; legeTekst?: string }) {
   const [open, setOpen] = useState<Taak | null>(null);
   const sluit = useCallback(() => setOpen(null), []);
   if (taken.length === 0) {
     return (
       <p className="rounded-xl border border-dashed border-rand p-10 text-center text-sm text-tekst-zacht">
-        Geen taken voor vandaag.
+        {legeTekst}
       </p>
     );
   }
