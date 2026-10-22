@@ -34,6 +34,22 @@ describe('inloggen', () => {
     expect(await inloggen('piet', 'juist-wachtwoord')).toEqual({ ok: false, fout: expect.stringMatching(/^Te veel mislukte pogingen/) });
   });
 
+  it('4 foute pogingen blokkeren nog niet', async () => {
+    for (let i = 0; i < 4; i++) await inloggen('piet', 'fout');
+    expect(await inloggen('piet', 'juist-wachtwoord')).toEqual({ ok: true, gebruikerId: piet.gebruikerId });
+    const [r] = await db()`select mislukte_pogingen, geblokkeerd_tot from gebruikers where id = ${piet.gebruikerId}`;
+    expect(r.misluktePogingen).toBe(0);
+    expect(r.geblokkeerdTot).toBeNull();
+  });
+
+  it('parallelle foute pogingen blokkeren precies één keer', async () => {
+    await Promise.all(Array.from({ length: 7 }, () => inloggen('piet', 'fout')));
+    const [r] = await db()`select mislukte_pogingen, geblokkeerd_tot from gebruikers where id = ${piet.gebruikerId}`;
+    expect(r.geblokkeerdTot).not.toBeNull();
+    expect(r.misluktePogingen).toBe(0);
+    expect(await inloggen('piet', 'juist-wachtwoord')).toEqual({ ok: false, fout: expect.stringMatching(/^Te veel mislukte pogingen/) });
+  });
+
   it('laat weer toe als de blokkade voorbij is', async () => {
     for (let i = 0; i < 5; i++) await inloggen('piet', 'fout');
     await db()`update gebruikers set geblokkeerd_tot = now() - interval '1 minute' where id = ${piet.gebruikerId}`;
@@ -102,6 +118,26 @@ describe('activatie', () => {
     for (let i = 0; i < 5; i++) await activeerMetCode('piet', fout2, 'nieuw-wachtwoord');
     expect(await activeerMetCode('piet', tweede.code, 'nieuw-wachtwoord'))
       .toEqual({ ok: false, fout: expect.stringMatching(/^Te veel mislukte pogingen/) });
+  });
+
+  it('parallelle foute codes blokkeren precies één keer', async () => {
+    const { code } = await nieuweActivatie();
+    const fout = code === '000000' ? '111111' : '000000';
+    await Promise.all(Array.from({ length: 7 }, () => activeerMetCode('piet', fout, 'nieuw-wachtwoord')));
+    const [r] = await db()`select mislukte_pogingen, geblokkeerd_tot from gebruikers where id = ${piet.gebruikerId}`;
+    expect(r.geblokkeerdTot).not.toBeNull();
+    expect(r.misluktePogingen).toBe(0);
+    expect(await activeerMetCode('piet', code, 'nieuw-wachtwoord'))
+      .toEqual({ ok: false, fout: expect.stringMatching(/^Te veel mislukte pogingen/) });
+  });
+
+  it('dezelfde link werkt bij gelijktijdig gebruik maar één keer', async () => {
+    const { token } = await nieuweActivatie();
+    const res = await Promise.all([
+      activeerMetToken(token, 'wachtwoord-een'),
+      activeerMetToken(token, 'wachtwoord-twee'),
+    ]);
+    expect(res.filter((r) => r.ok)).toHaveLength(1);
   });
 });
 
