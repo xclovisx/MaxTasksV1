@@ -23,7 +23,7 @@ npm run worker     # in een tweede terminal: doorschuiven en herhalingen (elke n
 
 ## Google (adressen zoeken)
 
-Adressen zoeken via Google is optioneel. Zonder sleutel kun je wel opgeslagen locaties gebruiken.
+Adressen zoeken via Google is optioneel. Zonder sleutel kun je wel opgeslagen locaties gebruiken. Het garage-adres in Instellingen kan dan alleen uit opgeslagen locaties gekozen worden; nieuwe adressen vragen Google.
 
 1. Maak in [Google Cloud](https://console.cloud.google.com/) een project aan en koppel een betaalmethode. Het gratis maandtegoed is ruim genoeg voor één garage.
 2. Zet **Places API (New)** aan. Voor fase 3 komt daar **Routes API** bij.

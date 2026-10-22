@@ -7,10 +7,16 @@ import type { Locatie } from '@/lib/diensten/locaties';
 import type { StopInvoer } from '@/lib/domein/validatie';
 import type { Suggestie } from '@/lib/google/plaatsen';
 
+// crypto.randomUUID bestaat alleen in beveiligde contexten (https/localhost); over http op een LAN-adres niet.
+function nieuweSessie(): string {
+  return crypto.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`;
+}
+
 export function alsStop(l: Locatie): StopInvoer {
   return { naam: l.naam, adres: l.adres, lat: l.lat, lng: l.lng, googlePlaceId: l.googlePlaceId, locatieId: l.id, bewaar: false };
 }
 
+const GOOGLE_STORING = 'Adres zoeken tijdelijk niet beschikbaar';
 const OPTIE = 'flex w-full flex-col px-3 py-1.5 text-left hover:bg-kaart-hover focus-visible:bg-kaart-hover focus-visible:outline-none';
 
 export function LocatieZoeker({
@@ -29,7 +35,8 @@ export function LocatieZoeker({
   const [suggesties, setSuggesties] = useState<Suggestie[]>([]);
   const [fout, setFout] = useState<string | null>(null);
   const [laden, setLaden] = useState(false);
-  const sessie = useRef<string>(crypto.randomUUID());
+  const sessie = useRef<string | null>(null);
+  if (sessie.current === null) sessie.current = nieuweSessie();
 
   const term = tekst.trim().toLowerCase();
   const eigen = term
@@ -44,14 +51,20 @@ export function LocatieZoeker({
     }
     let actueel = true;
     const timer = setTimeout(async () => {
-      const r = await zoekPlaatsenActie(tekst, sessie.current);
-      if (!actueel) return;
-      if (r.ok) {
-        setSuggesties(r.data);
-        setFout(null);
-      } else {
+      try {
+        const r = await zoekPlaatsenActie(tekst, sessie.current ?? '');
+        if (!actueel) return;
+        if (r.ok) {
+          setSuggesties(r.data);
+          setFout(null);
+        } else {
+          setSuggesties([]);
+          setFout(r.fout);
+        }
+      } catch {
+        if (!actueel) return;
         setSuggesties([]);
-        setFout(r.fout);
+        setFout(GOOGLE_STORING);
       }
     }, 300);
     return () => {
@@ -64,22 +77,27 @@ export function LocatieZoeker({
     setTekst('');
     setSuggesties([]);
     setFout(null);
-    sessie.current = crypto.randomUUID();
+    sessie.current = nieuweSessie();
   }
 
   async function kiesSuggestie(s: Suggestie) {
     setLaden(true);
-    const r = await plaatsDetailsActie(s.placeId, sessie.current);
-    setLaden(false);
-    if (!r.ok) {
-      setFout(r.fout);
-      return;
+    try {
+      const r = await plaatsDetailsActie(s.placeId, sessie.current ?? '');
+      if (!r.ok) {
+        setFout(r.fout);
+        return;
+      }
+      onKies({
+        naam: r.data.naam, adres: r.data.adres, lat: r.data.lat, lng: r.data.lng,
+        googlePlaceId: r.data.placeId, locatieId: null, bewaar: nieuwBewaren,
+      });
+      herstel();
+    } catch {
+      setFout(GOOGLE_STORING);
+    } finally {
+      setLaden(false);
     }
-    onKies({
-      naam: r.data.naam, adres: r.data.adres, lat: r.data.lat, lng: r.data.lng,
-      googlePlaceId: r.data.placeId, locatieId: null, bewaar: nieuwBewaren,
-    });
-    herstel();
   }
 
   return (

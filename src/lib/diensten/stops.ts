@@ -25,7 +25,7 @@ export async function schrijfStops(tx: Tx, taakId: string, stops: Stop[]): Promi
   // Stops zijn kopieen: een locatie die inmiddels verwijderd is (bijv. in een reekssjabloon) wordt een losse stop.
   const gevraagd = [...new Set(stops.map((s) => s.locatieId).filter((x): x is string => x !== null))];
   const bestaand = new Set(
-    gevraagd.length > 0 ? (await tx<{ id: string }[]>`select id from locaties where id in ${tx(gevraagd)}`).map((r) => r.id) : [],
+    gevraagd.length > 0 ? (await tx<{ id: string }[]>`select id from locaties where id in ${tx(gevraagd)} for key share`).map((r) => r.id) : [],
   );
   for (const [i, s] of stops.entries()) {
     const locatieId = s.locatieId !== null && bestaand.has(s.locatieId) ? s.locatieId : null;

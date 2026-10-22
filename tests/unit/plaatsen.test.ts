@@ -111,4 +111,23 @@ describe('Google Places-client', () => {
     await expect(zoekPlaatsen('Dorpsstraat', 's', antwoord(null))).rejects.toBeInstanceOf(GoogleNietBeschikbaar);
     await expect(plaatsDetails('p1', 's', antwoord(null))).rejects.toBeInstanceOf(GoogleNietBeschikbaar);
   });
+
+  it('kapt de zoekinvoer af op 200 tekens', async () => {
+    const haal = antwoord({ suggestions: [] });
+    await zoekPlaatsen(`  ${'a'.repeat(500)}  `, 's1', haal);
+    const [, init] = haal.mock.calls[0] as [string, RequestInit];
+    expect(JSON.parse(String(init.body)).input).toBe('a'.repeat(200));
+  });
+
+  it('kapt te lange naam en adres uit Google af op de schemalimieten', async () => {
+    const haal = antwoord({
+      id: 'p1', displayName: { text: 'N'.repeat(250) }, formattedAddress: 'A'.repeat(500),
+      location: { latitude: 51.589, longitude: 4.776 },
+    });
+    const p = await plaatsDetails('p1', 's1', haal);
+    expect(p.naam).toHaveLength(100);
+    expect(p.adres).toHaveLength(300);
+    const geenNaam = antwoord({ id: 'p1', formattedAddress: 'B'.repeat(500), location: { latitude: 1, longitude: 2 } });
+    expect((await plaatsDetails('p1', 's1', geenNaam)).naam).toHaveLength(100);
+  });
 });

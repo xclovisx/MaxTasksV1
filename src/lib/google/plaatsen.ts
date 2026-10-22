@@ -47,7 +47,7 @@ type AutocompleteAntwoord = {
 };
 
 export async function zoekPlaatsen(invoer: string, sessie: string, haal: typeof fetch = fetch): Promise<Suggestie[]> {
-  const tekst = invoer.trim();
+  const tekst = invoer.trim().slice(0, 200);
   if (tekst.length < 3) return [];
   const data = (await vraag(haal, `${BASIS}/places:autocomplete`, {
     method: 'POST',
@@ -86,8 +86,8 @@ export async function plaatsDetails(placeId: string, sessie: string, haal: typeo
   }
   return {
     placeId: d.id ?? placeId,
-    naam: d.displayName?.text ?? d.formattedAddress,
-    adres: d.formattedAddress,
+    naam: (d.displayName?.text ?? d.formattedAddress).slice(0, 100),
+    adres: d.formattedAddress.slice(0, 300),
     lat: loc.latitude,
     lng: loc.longitude,
   };

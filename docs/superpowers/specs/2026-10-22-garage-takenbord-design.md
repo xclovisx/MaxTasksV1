@@ -53,7 +53,7 @@ Alles draait met Docker Compose op een eigen server (VPS).
 - **Tijdzone:** alle datumlogica in `Europe/Amsterdam`. Taakdatums worden opgeslagen als `date` en tijden als `time`, dus zonder tijdzone.
 - **Externe diensten:** Google Places API (New) voor het aanvullen van adressen en Google Routes API (fase 3) voor de optimale volgorde. Beide worden alleen vanaf de server aangeroepen, met één sleutel (`GOOGLE_MAPS_API_KEY`, beperkt tot de server-IP en deze API's), zodat er geen sleutel in de browser staat. In Google Cloud wordt een budgetwaarschuwing ingesteld.
 - **Back-up:** de `worker` draait elke nacht om 03:00 `pg_dump` naar een volume en bewaart 14 dagen.
-- **Configuratie:** via `.env`: database-wachtwoorden, Google-sleutels, ntfy-token en de publieke URL.
+- **Configuratie:** via `.env`: database-wachtwoorden, Google-sleutel, ntfy-token en de publieke URL.
 - **Eerste beheerder:** wordt aangemaakt met het CLI-commando `npm run maak-beheerder`, uitgevoerd in de `app`-container.
 
 ## 4. Rollen en rechten
@@ -180,12 +180,12 @@ Het bord abonneert zich via Server-Sent Events op wijzigingen van het getoonde b
 **Weekbord (kolommen, Trello-stijl)**
 - Bovenbalk: bedrijfsnaam (bij de beheerder een bedrijfs- en bordkiezer), weeknummer, ‹ Vorige · Deze week · Volgende ›, en "+ Taak".
 - Eén kolom per werkdag van het bedrijf, met dag en datum. Vandaag is gemarkeerd.
-- Een kaart toont titel, prioriteit, tijd, 📍 (adres of "3 stops"), 🔁 bij een herhaling, een statuslabel (Bezig of Klaar) en de labels "uitgesteld van …", "gemist" of "achterstallig".
+- Een kaart toont titel, prioriteit, tijd, 📍 (naam van de stop of "3 stops"; bewuste afwijking: niet het adres), 🔁 bij een herhaling, een statuslabel (Bezig of Klaar) en de labels "uitgesteld van …", "gemist" of "achterstallig".
 - Kaarten zijn te **slepen naar een andere dag**. Dat verandert `datum` en, bij een herhaling, ook `afwijkend`.
 - "+ Taak" in een kolom vult die dag al in.
 - **Telefoon:** één dag tegelijk, swipen tussen dagen, met een dagkiezer bovenaan.
 
-**Taakvenster (aanmaken en bewerken):** titel, omschrijving, dag, tijd (optioneel), prioriteit (5 knoppen), herhalen (keuzelijst met de bijbehorende velden), stops (lijst met verwijderknop, zoekveld en "Vaak gebruikt"). Onderaan staan "Verwijderen" (met bevestiging), "Annuleren" en "Opslaan". Voor de beheerder komen daar de statusknoppen en het navigatieblok bij (§8.2), plus een uitklapbare historie.
+**Taakvenster (aanmaken en bewerken):** titel, omschrijving, dag, tijd (optioneel), prioriteit (5 knoppen), herhalen (keuzelijst met de bijbehorende velden), stops (lijst met verwijderknop, zoekveld en "Vaak gebruikt"). Onderaan staan "Verwijderen" (met bevestiging), "Annuleren" en "Opslaan". Voor de beheerder komen daar de statusknoppen bij (§8.2), plus een uitklapbare historie. Het navigatieblok ("Navigeer" per stop) is bewust voor alle gebruikers zichtbaar, niet alleen voor de beheerder.
 
 **Beheerdersoverzicht "Vandaag":** het startscherm van de beheerder, met alle taken van vandaag van alle bedrijven, gesorteerd op prioriteit en daarna tijd, en per taak de bedrijfsnaam.
 
