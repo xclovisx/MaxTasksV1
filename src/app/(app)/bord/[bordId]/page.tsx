@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation';
+import { LiveVernieuwen } from '@/components/bord/live-vernieuwen';
 import { WeekBord } from '@/components/bord/week-bord';
 import { haalBord } from '@/lib/diensten/borden';
 import { haalInstellingen } from '@/lib/diensten/instellingen';
@@ -32,21 +33,24 @@ export default async function BordPagina({
   const taken = (await takenVoorPeriode(bord.id, maandag, plusDagen(maandag, 6))).filter((t) => dagen.includes(t.datum));
 
   return (
-    <WeekBord
-      key={maandag}
-      bordId={bord.id}
-      dagen={dagen}
-      taken={taken}
-      vandaag={vandaag}
-      isBeheerder={gebruiker.rol === 'beheerder'}
-      gearchiveerd={bord.gearchiveerd}
-      weekLabel={`Week ${isoWeek(maandag).week} · ${bord.naam}`}
-      periodeLabel={`${kortDatumLabel(dagen[0])} – ${kortDatumLabel(dagen[dagen.length - 1])} ${maandag.slice(0, 4)}`}
-      links={{
-        vorige: `/bord/${bord.id}?week=${weekCode(plusDagen(maandag, -7))}`,
-        deze: `/bord/${bord.id}`,
-        volgende: `/bord/${bord.id}?week=${weekCode(plusDagen(maandag, 7))}`,
-      }}
-    />
+    <>
+      <WeekBord
+        key={maandag}
+        bordId={bord.id}
+        dagen={dagen}
+        taken={taken}
+        vandaag={vandaag}
+        isBeheerder={gebruiker.rol === 'beheerder'}
+        gearchiveerd={bord.gearchiveerd}
+        weekLabel={`Week ${isoWeek(maandag).week} · ${bord.naam}`}
+        periodeLabel={`${kortDatumLabel(dagen[0])} – ${kortDatumLabel(dagen[dagen.length - 1])} ${maandag.slice(0, 4)}`}
+        links={{
+          vorige: `/bord/${bord.id}?week=${weekCode(plusDagen(maandag, -7))}`,
+          deze: `/bord/${bord.id}`,
+          volgende: `/bord/${bord.id}?week=${weekCode(plusDagen(maandag, 7))}`,
+        }}
+      />
+      <LiveVernieuwen bron={`/api/borden/${bord.id}/gebeurtenissen`} />
+    </>
   );
 }
