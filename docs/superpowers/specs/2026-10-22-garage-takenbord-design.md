@@ -51,7 +51,7 @@ Alles draait met Docker Compose op een eigen server (VPS).
 - **Database-toegang:** postgres.js met handgeschreven SQL en een eigen kleine migratierunner (`migrations/*.sql`). Dat geeft volledige controle over rollen, Row Level Security en views.
 - **Styling:** Tailwind CSS, donker thema (zie §9).
 - **Tijdzone:** alle datumlogica in `Europe/Amsterdam`. Taakdatums worden opgeslagen als `date` en tijden als `time`, dus zonder tijdzone.
-- **Externe diensten:** Google Places API (New) voor het aanvullen van adressen (browsersleutel, beperkt tot het domein) en Google Routes API voor de optimale volgorde (serversleutel, alleen in `app`). In Google Cloud wordt een budgetwaarschuwing ingesteld.
+- **Externe diensten:** Google Places API (New) voor het aanvullen van adressen en Google Routes API (fase 3) voor de optimale volgorde. Beide worden alleen vanaf de server aangeroepen, met één sleutel (`GOOGLE_MAPS_API_KEY`, beperkt tot de server-IP en deze API's), zodat er geen sleutel in de browser staat. In Google Cloud wordt een budgetwaarschuwing ingesteld.
 - **Back-up:** de `worker` draait elke nacht om 03:00 `pg_dump` naar een volume en bewaart 14 dagen.
 - **Configuratie:** via `.env`: database-wachtwoorden, Google-sleutels, ntfy-token en de publieke URL.
 - **Eerste beheerder:** wordt aangemaakt met het CLI-commando `npm run maak-beheerder`, uitgevoerd in de `app`-container.

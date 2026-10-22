@@ -21,3 +21,9 @@ export async function maakMedewerker(): Promise<{ gebruikersnaam: string; wachtw
   await sql.end();
   return { gebruikersnaam, wachtwoord };
 }
+
+export async function maakOpgeslagenLocatie(naam: string, adres: string, lat: number, lng: number): Promise<void> {
+  const sql = maakSql(E2E_DATABASE_URL, { max: 1 });
+  await sql`insert into locaties (naam, adres, lat, lng) values (${naam}, ${adres}, ${lat}, ${lng})`;
+  await sql.end();
+}

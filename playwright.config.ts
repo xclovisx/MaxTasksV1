@@ -14,6 +14,6 @@ export default defineConfig({
     url: `http://localhost:${POORT}/login`,
     reuseExistingServer: false,
     timeout: 180_000,
-    env: { DATABASE_URL: E2E_DATABASE_URL, APP_URL: `http://localhost:${POORT}` },
+    env: { DATABASE_URL: E2E_DATABASE_URL, APP_URL: `http://localhost:${POORT}`, GOOGLE_MAPS_API_KEY: '' },
   },
 });

@@ -21,6 +21,19 @@ npm run dev        # http://localhost:3000
 npm run worker     # in een tweede terminal: doorschuiven en herhalingen (elke nacht 00:05)
 ```
 
+## Google (adressen zoeken)
+
+Adressen zoeken via Google is optioneel. Zonder sleutel kun je wel opgeslagen locaties gebruiken.
+
+1. Maak in [Google Cloud](https://console.cloud.google.com/) een project aan en koppel een betaalmethode. Het gratis maandtegoed is ruim genoeg voor één garage.
+2. Zet **Places API (New)** aan. Voor fase 3 komt daar **Routes API** bij.
+3. Maak een API-sleutel aan, beperk die tot deze API's en (in productie) tot het IP-adres van je server, en stel een budgetwaarschuwing in.
+4. Zet de sleutel in `.env`:
+   ```
+   GOOGLE_MAPS_API_KEY=jouw-sleutel
+   ```
+De sleutel wordt alleen op de server gebruikt en komt nooit in de browser.
+
 ## Testen
 
 ```bash
