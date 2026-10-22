@@ -1,1 +1,33 @@
 @import "tailwindcss";
+
+@theme {
+  --color-achtergrond: #0b0f14;
+  --color-paneel: #11161d;
+  --color-kaart: #18202a;
+  --color-kaart-hover: #1f2935;
+  --color-rand: #263244;
+  --color-rand-zacht: #1b2330;
+  --color-tekst: #e6e8eb;
+  --color-tekst-zacht: #9aa4b2;
+  --color-tekst-flauw: #6b7584;
+  --color-accent: #22c55e;
+  --color-accent-donker: #052e16;
+  --color-prio-laag: #6b7280;
+  --color-prio-middel: #3b82f6;
+  --color-prio-hoog: #f97316;
+  --color-prio-zsm: #ef4444;
+  --color-prio-nu: #dc2626;
+  --color-bezig-bg: #451a03;
+  --color-bezig-tekst: #fcd34d;
+  --color-klaar-bg: #14532d;
+  --color-klaar-tekst: #86efac;
+  --color-fout: #f87171;
+}
+
+@theme inline {
+  --font-sans: var(--font-plex), ui-sans-serif, system-ui, sans-serif;
+}
+
+:root {
+  color-scheme: dark;
+}
