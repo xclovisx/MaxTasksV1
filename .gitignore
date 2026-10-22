@@ -1,3 +1,10 @@
-.superpowers/
 node_modules/
+.next/
+next-env.d.ts
 .env
+.superpowers/
+.impeccable/
+.claude/worktrees/
+*.tsbuildinfo
+test-results/
+playwright-report/
