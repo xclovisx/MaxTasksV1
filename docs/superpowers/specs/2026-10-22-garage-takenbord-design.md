@@ -203,7 +203,7 @@ Het bord abonneert zich via Server-Sent Events op wijzigingen van het getoonde b
 |---|---|
 | Google Routes faalt | Melding, route in de ingevoerde volgorde (§8.3.5) |
 | Google Places faalt | Zoeken in opgeslagen locaties werkt nog. Melding "Adres zoeken tijdelijk niet beschikbaar" |
-| GPS geweigerd | Start bij de garage, met melding |
+| GPS geweigerd | Volgorde berekend vanaf de garage, met melding; Maps start bij de eigen locatie van het apparaat |
 | Meer dan 9 stops | Geblokkeerd bij invoer, en ook op de server gecontroleerd |
 | Gelijktijdige bewerking | 409 met herlaadmelding (§7.5) |
 | ntfy faalt | Wordt gelogd, de actie gaat door |
