@@ -1,4 +1,4 @@
-import { luisterNaarWijzigingen } from '@/lib/db/gebeurtenissen';
+import { AFWEZIGHEID_SEIN, luisterNaarWijzigingen } from '@/lib/db/gebeurtenissen';
 import { haalBord } from '@/lib/diensten/borden';
 import { NietGevonden } from '@/lib/fouten';
 import { huidigeGebruiker } from '@/lib/web/huidige-gebruiker';
@@ -46,7 +46,7 @@ export async function GET(verzoek: Request, { params }: { params: Promise<{ bord
       });
       stuur(': verbonden\n\n');
       const unlisten = await luisterNaarWijzigingen((id) => {
-        if (alle || id === bordId) stuur(`data: ${id}\n\n`);
+        if (alle || id === bordId || id === AFWEZIGHEID_SEIN) stuur(`data: ${id}\n\n`);
       });
       if (verzoek.signal.aborted) {
         void unlisten().catch(() => {});

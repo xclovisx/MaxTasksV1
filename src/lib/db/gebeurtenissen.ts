@@ -7,6 +7,13 @@ export async function meldWijziging(tx: Tx, bordId: string): Promise<void> {
   await tx`select pg_notify(${KANAAL}, ${bordId})`;
 }
 
+/** Id waarmee een wijziging in de beschikbaarheid aan alle borden wordt gemeld. */
+export const AFWEZIGHEID_SEIN = 'afwezigheid';
+
+export async function meldAfwezigheidGewijzigd(): Promise<void> {
+  await db()`select pg_notify(${KANAAL}, ${AFWEZIGHEID_SEIN})`;
+}
+
 export async function luisterNaarWijzigingen(fn: (bordId: string) => void): Promise<() => Promise<void>> {
   const { unlisten } = await db().listen(KANAAL, fn);
   return unlisten;
