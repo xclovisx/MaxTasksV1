@@ -89,3 +89,25 @@ export type MedewerkerInvoer = z.input<typeof medewerkerSchema>;
 export type HerhalingInvoer = z.output<typeof herhalingSchema>;
 export type LocatieInvoer = z.input<typeof locatieSchema>;
 export type StopInvoer = z.output<typeof stopSchema>;
+
+export const afwezigheidSchema = z
+  .object({
+    begindatum: datum,
+    einddatum: datum.nullable().default(null),
+    heleDag: z.boolean(),
+    van: tijd.default(null),
+    tot: tijd.default(null),
+    reden: z.string().trim().max(100, 'Reden is te lang (max 100 tekens)').nullable().default(null).transform((v) => v || null),
+    herhaling: herhalingSchema.nullable().default(null),
+  })
+  .refine((a) => a.einddatum === null || a.einddatum >= a.begindatum, {
+    message: 'De einddatum ligt vóór de begindatum',
+    path: ['einddatum'],
+  })
+  .refine((a) => a.heleDag || (a.van !== null && a.tot !== null && a.van < a.tot), {
+    message: 'Kies een tijdvak waarbij "van" vóór "tot" ligt',
+    path: ['van'],
+  })
+  .transform((a) => (a.heleDag ? { ...a, van: null, tot: null } : a));
+
+export type AfwezigheidInvoer = z.input<typeof afwezigheidSchema>;
