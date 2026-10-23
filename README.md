@@ -8,6 +8,7 @@ Ontwerp: `docs/superpowers/specs/2026-10-22-garage-takenbord-design.md`.
 
 - Node.js 24 LTS
 - Docker Desktop (op Windows vereist dit WSL)
+- Tip: zet in Docker Desktop "Start Docker Desktop when you sign in" aan. De database start dan vanzelf mee (`restart: unless-stopped`).
 
 ## Lokaal starten
 
@@ -20,6 +21,10 @@ npm run maak-beheerder -- "Max" max
 npm run dev        # http://localhost:3000
 npm run worker     # in een tweede terminal: doorschuiven en herhalingen (elke nacht 00:05)
 ```
+
+## Beschikbaarheid
+
+Onder **Beschikbaarheid** (alleen voor de beheerder) leg je vast wanneer je niet beschikbaar bent. Dat kan een hele dag zijn, een periode of een tijdvak, eenmalig of terugkerend. Collega's zien een balk op het bord, en het taakvenster waarschuwt als ze in zo'n blok plannen. Opslaan blijft mogelijk.
 
 ## Google (adressen zoeken en route plannen)
 

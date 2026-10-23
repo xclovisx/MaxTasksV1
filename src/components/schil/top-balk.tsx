@@ -27,6 +27,7 @@ export function TopBalk({
           {gebruiker.rol === 'beheerder' && (
             <>
               <Link href="/vandaag" className={NAV}>Vandaag</Link>
+              <Link href="/beschikbaarheid" className={NAV}>Beschikbaarheid</Link>
               <Link href="/beheer" className={NAV}>Beheer</Link>
             </>
           )}
