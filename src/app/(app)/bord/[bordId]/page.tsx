@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import { LiveVernieuwen } from '@/components/bord/live-vernieuwen';
 import { WeekBord } from '@/components/bord/week-bord';
+import { afwezighedenInPeriode } from '@/lib/diensten/afwezigheden';
 import { haalBord } from '@/lib/diensten/borden';
 import { haalInstellingen } from '@/lib/diensten/instellingen';
 import { takenVoorPeriode } from '@/lib/diensten/taken';
@@ -30,6 +31,7 @@ export default async function BordPagina({
   const vandaag = vandaagInAmsterdam();
   const maandag = (week && parseWeekCode(week)) || maandagVan(vandaag);
   const taken = await takenVoorPeriode(bord.id, maandag, plusDagen(maandag, 6));
+  const afwezigheid = await afwezighedenInPeriode(maandag, plusDagen(maandag, 6));
   const dagen = dagenVoorWeek(maandag, werkdagen, taken.map((t) => t.datum));
 
   return (
@@ -40,6 +42,7 @@ export default async function BordPagina({
         dagen={dagen}
         werkdagen={werkdagen}
         taken={taken}
+        afwezigheid={afwezigheid}
         vandaag={vandaag}
         isBeheerder={gebruiker.rol === 'beheerder'}
         gearchiveerd={bord.gearchiveerd}

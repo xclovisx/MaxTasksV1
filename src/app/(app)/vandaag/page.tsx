@@ -1,6 +1,8 @@
+import { AfwezigheidBalken } from '@/components/afwezigheid/afwezigheid-balken';
 import { DagNavigatie } from '@/components/bord/dag-navigatie';
 import { LiveVernieuwen } from '@/components/bord/live-vernieuwen';
 import { VandaagLijst } from '@/components/bord/vandaag-lijst';
+import { afwezighedenInPeriode } from '@/lib/diensten/afwezigheden';
 import { takenOpDatum } from '@/lib/diensten/taken';
 import { DAGNAMEN, isGeldigeDatum, kortDatumLabel, plusDagen, vandaagInAmsterdam, weekdag } from '@/lib/domein/datums';
 import { vereisBeheerderSessie } from '@/lib/web/huidige-gebruiker';
@@ -17,7 +19,7 @@ export default async function VandaagPagina({ searchParams }: { searchParams: Pr
   const vandaag = vandaagInAmsterdam();
   const { datum: gevraagd } = await searchParams;
   const datum = gevraagd && isGeldigeDatum(gevraagd) ? gevraagd : vandaag;
-  const taken = await takenOpDatum(datum);
+  const [taken, afwezigheid] = await Promise.all([takenOpDatum(datum), afwezighedenInPeriode(datum, datum)]);
   const open = taken.filter((t) => t.status !== 'klaar').length;
   const relatief = relatieveNaam(datum, vandaag);
   const jaar = datum.slice(0, 4) !== vandaag.slice(0, 4) ? ` ${datum.slice(0, 4)}` : '';
@@ -34,6 +36,7 @@ export default async function VandaagPagina({ searchParams }: { searchParams: Pr
         </div>
         <DagNavigatie datum={datum} vandaag={vandaag} />
       </div>
+      <AfwezigheidBalken naam={afwezigheid.naam} blokken={afwezigheid.perDag[datum] ?? []} />
       <VandaagLijst key={datum} taken={taken} legeTekst={datum === vandaag ? 'Geen taken voor vandaag.' : 'Geen taken op deze dag.'} />
       <LiveVernieuwen bron="/api/borden/alle/gebeurtenissen" />
     </div>

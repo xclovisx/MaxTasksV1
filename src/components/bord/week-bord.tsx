@@ -8,6 +8,7 @@ import { verplaatsTaakActie } from '@/app/(app)/bord/acties';
 import { PijlLinks, PijlRechts, PlusIcoon } from '@/components/iconen';
 import { Knop, Melding } from '@/components/ui';
 import { cn } from '@/lib/cn';
+import type { AfwezighedenOverzicht } from '@/lib/diensten/afwezigheden';
 import type { Taak } from '@/lib/diensten/taken';
 import { DAGNAMEN_KORT, type Datum, kortDatumLabel, weekdag } from '@/lib/domein/datums';
 import { vergelijkTaken } from '@/lib/domein/taak';
@@ -22,6 +23,7 @@ export type WeekBordProps = {
   dagen: Datum[];
   werkdagen: number[];
   taken: Taak[];
+  afwezigheid: AfwezighedenOverzicht;
   vandaag: Datum;
   isBeheerder: boolean;
   gearchiveerd: boolean;
@@ -30,7 +32,7 @@ export type WeekBordProps = {
   links: { vorige: string; deze: string; volgende: string };
 };
 
-export function WeekBord({ bordId, dagen, werkdagen, taken, vandaag, isBeheerder, gearchiveerd, weekLabel, periodeLabel, links }: WeekBordProps) {
+export function WeekBord({ bordId, dagen, werkdagen, taken, afwezigheid, vandaag, isBeheerder, gearchiveerd, weekLabel, periodeLabel, links }: WeekBordProps) {
   const router = useRouter();
   const [dialoog, setDialoog] = useState<DialoogModus | null>(null);
   const [verplaatst, setVerplaatst] = useState<Record<string, Datum>>({});
@@ -161,6 +163,8 @@ export function WeekBord({ bordId, dagen, werkdagen, taken, vandaag, isBeheerder
               isWerkdag={werkdagen.includes(weekdag(d))}
               verborgenOpMobiel={d !== actieveDag}
               gearchiveerd={gearchiveerd}
+              afwezig={afwezigheid.perDag[d] ?? []}
+              afwezigNaam={afwezigheid.naam}
               onNieuw={() => nieuweTaak(d)}
               onOpen={openTaak}
             />

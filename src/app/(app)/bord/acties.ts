@@ -1,5 +1,6 @@
 'use server';
 
+import { afwezigheidWaarschuwing } from '@/lib/diensten/afwezigheden';
 import { stopReeks, wijzigReeks } from '@/lib/diensten/herhalingen';
 import { planRoute, type RoutePlan } from '@/lib/diensten/route';
 import {
@@ -54,5 +55,12 @@ export async function planRouteActie(taakId: string, start: Punt | null): Promis
   return voerUit(async () => {
     await ctx(); // alleen ingelogde gebruikers
     return planRoute(taakId, start);
+  });
+}
+
+export async function afwezigheidWaarschuwingActie(datum: string, tijd: string | null): Promise<ActieResultaat<string | null>> {
+  return voerUit(async () => {
+    await ctx(); // alleen ingelogde gebruikers
+    return afwezigheidWaarschuwing(datum, tijd);
   });
 }

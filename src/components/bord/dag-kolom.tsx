@@ -1,9 +1,11 @@
 'use client';
 
 import { useDraggable, useDroppable } from '@dnd-kit/core';
+import { AfwezigheidBalken } from '@/components/afwezigheid/afwezigheid-balken';
 import { PlusIcoon } from '@/components/iconen';
 import { cn } from '@/lib/cn';
 import type { Taak } from '@/lib/diensten/taken';
+import type { Afwezigheid } from '@/lib/domein/afwezigheid';
 import { DAGNAMEN, type Datum, kortDatumLabel, weekdag } from '@/lib/domein/datums';
 import { TaakKaartInhoud } from './taak-kaart';
 
@@ -35,6 +37,8 @@ export function DagKolom({
   isWerkdag,
   verborgenOpMobiel,
   gearchiveerd,
+  afwezig,
+  afwezigNaam,
   onNieuw,
   onOpen,
 }: {
@@ -44,11 +48,14 @@ export function DagKolom({
   isWerkdag: boolean;
   verborgenOpMobiel: boolean;
   gearchiveerd: boolean;
+  afwezig: Afwezigheid[];
+  afwezigNaam: string;
   onNieuw: () => void;
   onOpen: (taak: Taak) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: datum });
   const dagnaam = DAGNAMEN[weekdag(datum)];
+  const heleDagAfwezig = afwezig.some((b) => b.heleDag);
   return (
     <section
       ref={setNodeRef}
@@ -57,7 +64,8 @@ export function DagKolom({
       className={cn(
         'min-h-72 flex-col rounded-xl border p-2 transition-colors',
         verborgenOpMobiel ? 'hidden md:flex' : 'flex',
-        isVandaag ? 'border-accent/50 bg-paneel' : 'border-rand-zacht bg-paneel/60',
+        isVandaag ? 'border-accent/50' : 'border-rand-zacht',
+        heleDagAfwezig ? 'border-dashed bg-paneel/25' : isVandaag ? 'bg-paneel' : 'bg-paneel/60',
         isOver && 'border-prio-middel/70 bg-kaart/60',
       )}
     >
@@ -68,6 +76,7 @@ export function DagKolom({
           {isVandaag ? 'vandaag' : kortDatumLabel(datum)}
         </span>
       </header>
+      <AfwezigheidBalken naam={afwezigNaam} blokken={afwezig} />
       <ul className="flex flex-1 flex-col gap-2">
         {taken.map((t) => (
           <li key={t.id}><SleepbareKaart taak={t} onOpen={() => onOpen(t)} /></li>

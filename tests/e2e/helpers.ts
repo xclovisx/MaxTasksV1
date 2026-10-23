@@ -35,6 +35,20 @@ export async function zetGarage(lat: number, lng: number): Promise<void> {
   await sql.end();
 }
 
+export async function maakAfwezigheidInDb(datum: string, van: string, tot: string, reden: string): Promise<string> {
+  const sql = maakSql(E2E_DATABASE_URL, { max: 1 });
+  const [r] = await sql<{ id: string }[]>`
+    insert into afwezigheden (begindatum, hele_dag, van, tot, reden) values (${datum}, false, ${van}, ${tot}, ${reden}) returning id`;
+  await sql.end();
+  return r.id;
+}
+
+export async function verwijderAfwezigheidInDb(id: string): Promise<void> {
+  const sql = maakSql(E2E_DATABASE_URL, { max: 1 });
+  await sql`delete from afwezigheden where id = ${id}`;
+  await sql.end();
+}
+
 /** Zet vandaag een taak met stops op het eerste bord. */
 export async function maakTaakMetStops(titel: string, stops: { naam: string; adres: string; lat: number; lng: number }[]): Promise<void> {
   const sql = maakSql(E2E_DATABASE_URL, { max: 1 });

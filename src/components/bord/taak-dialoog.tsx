@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { type FormEvent, useEffect, useRef, useState, useTransition } from 'react';
 import {
-  historieActie, maakTaakActie, stopReeksActie, verwijderTaakActie, wijzigReeksActie, wijzigTaakActie, zetStatusActie,
+  afwezigheidWaarschuwingActie, historieActie, maakTaakActie, stopReeksActie, verwijderTaakActie, wijzigReeksActie, wijzigTaakActie, zetStatusActie,
 } from '@/app/(app)/bord/acties';
 import { locatieOverzichtActie } from '@/app/(app)/locaties/acties';
 import { KruisIcoon } from '@/components/iconen';
@@ -51,6 +51,7 @@ export function TaakDialoog({ modus, isBeheerder, onSluit }: { modus: DialoogMod
   const [bereik, setBereik] = useState<'deze' | 'reeks'>('deze');
   const [fout, setFout] = useState<{ tekst: string; conflict: boolean } | null>(null);
   const [historie, setHistorie] = useState<HistorieRegel[] | null>(null);
+  const [afwezig, setAfwezig] = useState<string | null>(null);
   const [bezig, start] = useTransition();
   const titelRef = useRef<HTMLInputElement>(null);
 
@@ -70,6 +71,20 @@ export function TaakDialoog({ modus, isBeheerder, onSluit }: { modus: DialoogMod
     void locatieOverzichtActie().then((r) => { if (actueel && r.ok) setLocaties(r.data); });
     return () => { actueel = false; };
   }, []);
+
+  // Waarschuw als de beheerder op de gekozen dag/tijd niet beschikbaar is; plannen blijft altijd mogelijk.
+  useEffect(() => {
+    let actueel = true;
+    const timer = setTimeout(() => {
+      afwezigheidWaarschuwingActie(datum, tijd || null)
+        .then((r) => { if (actueel) setAfwezig(r.ok ? r.data : null); })
+        .catch(() => { if (actueel) setAfwezig(null); });
+    }, 300);
+    return () => {
+      actueel = false;
+      clearTimeout(timer);
+    };
+  }, [datum, tijd]);
 
   const isReeks = Boolean(taak?.herhalingId);
   const reeksBewerken = isReeks && bereik === 'reeks';
@@ -216,6 +231,7 @@ export function TaakDialoog({ modus, isBeheerder, onSluit }: { modus: DialoogMod
               <Invoer type="time" value={tijd} onChange={(e) => setTijd(e.target.value)} />
             </Veld>
           </div>
+          {afwezig && <Melding soort="info">{afwezig}</Melding>}
           <div>
             <span className="mb-1.5 block text-xs font-medium text-tekst-zacht">Prioriteit</span>
             <div className="flex flex-wrap gap-1.5" role="group" aria-label="Prioriteit">
