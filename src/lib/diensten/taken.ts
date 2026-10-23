@@ -10,6 +10,7 @@ import {
 import { Conflict, GeenToegang, NietGevonden } from '../fouten';
 import { bordInTx } from './borden';
 import { maakReeks } from './herhalingen';
+import { meldUrgenteTaak } from './meldingen';
 import { bewaarNieuweLocaties, haalStops, schrijfStops, type Stop, stopsTekst, telGebruik } from './stops';
 
 export type Taak = {
@@ -77,7 +78,7 @@ export async function taakHistorie(id: string): Promise<HistorieRegel[]> {
 
 export async function maakTaak(ctx: Context, invoer: NieuweTaakInvoer, vandaag: Datum = vandaagInAmsterdam()): Promise<{ id: string }> {
   const v = nieuweTaakSchema.parse(invoer);
-  return transactie(async (tx) => {
+  const resultaat = await transactie(async (tx) => {
     const bord = await bordInTx(tx, v.bordId);
     const stops = await bewaarNieuweLocaties(tx, v.stops);
     await telGebruik(tx, stops.map((s) => s.locatieId));
@@ -95,6 +96,8 @@ export async function maakTaak(ctx: Context, invoer: NieuweTaakInvoer, vandaag: 
     await meldWijziging(tx, bord.id);
     return { id: t.id };
   });
+  await meldUrgenteTaak(ctx, null, v);
+  return resultaat;
 }
 
 type Vergrendeld = {
@@ -147,7 +150,7 @@ async function logWijzigingen(tx: Tx, taakId: string, gebruikerId: string, oud: 
 
 export async function wijzigTaak(ctx: Context, id: string, versie: number, invoer: TaakVeldenInvoer): Promise<void> {
   const v = taakVeldenSchema.parse(invoer);
-  await transactie(async (tx) => {
+  const vorig = await transactie(async (tx) => {
     const oud = await vergrendel(tx, id, versie);
     const oudeStops = await haalStops(tx, id);
     const stops = await bewaarNieuweLocaties(tx, v.stops);
@@ -165,7 +168,9 @@ export async function wijzigTaak(ctx: Context, id: string, versie: number, invoe
     await schrijfStops(tx, id, stops);
     await logWijzigingen(tx, id, ctx.gebruikerId, { ...oud, stops: stopsTekst(oudeStops) }, { ...v, stops: stopsTekst(stops) });
     await meldWijziging(tx, oud.bordId);
+    return { prioriteit: oud.prioriteit, bordId: oud.bordId };
   });
+  await meldUrgenteTaak(ctx, vorig.prioriteit, { ...v, bordId: vorig.bordId });
 }
 
 export async function verplaatsTaak(ctx: Context, id: string, versie: number, datum: Datum): Promise<void> {

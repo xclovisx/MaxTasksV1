@@ -60,6 +60,12 @@ export const instellingenSchema = z
   })
   .transform((i) => (i.garageAdres ? i : { ...i, garageLat: null, garageLng: null }));
 
+export const ntfyOnderwerpSchema = z
+  .string()
+  .trim()
+  .regex(/^[A-Za-z0-9_-]{0,64}$/, 'Onderwerp: maximaal 64 tekens, alleen letters, cijfers, - en _')
+  .transform((v) => v || null);
+
 export const bordNaamSchema = z.string().trim().min(1, 'Naam is verplicht').max(60);
 
 export const medewerkerSchema = z.object({
