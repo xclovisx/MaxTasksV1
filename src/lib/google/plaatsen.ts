@@ -1,4 +1,5 @@
 import { Fout, Ongeldig } from '../fouten';
+import { googleSleutel, vraagGoogle } from './http';
 
 export class GoogleNietBeschikbaar extends Fout {
   constructor() {
@@ -11,30 +12,10 @@ export type Plaats = { placeId: string; naam: string; adres: string; lat: number
 
 const BASIS = 'https://places.googleapis.com/v1';
 const TIMEOUT_MS = 5000;
-
-function sleutel(): string {
-  const k = process.env.GOOGLE_MAPS_API_KEY;
-  if (!k) throw new GoogleNietBeschikbaar();
-  return k;
-}
-
-async function vraag(haal: typeof fetch, url: string, init: RequestInit): Promise<unknown> {
-  let r: Response;
-  try {
-    r = await haal(url, { ...init, signal: AbortSignal.timeout(TIMEOUT_MS) });
-  } catch {
-    throw new GoogleNietBeschikbaar();
-  }
-  if (!r.ok) throw new GoogleNietBeschikbaar();
-  let data: unknown;
-  try {
-    data = await r.json();
-  } catch {
-    throw new GoogleNietBeschikbaar();
-  }
-  if (typeof data !== 'object' || data === null) throw new GoogleNietBeschikbaar();
-  return data;
-}
+const nietBeschikbaar = () => new GoogleNietBeschikbaar();
+const sleutel = () => googleSleutel(nietBeschikbaar);
+const vraag = (haal: typeof fetch, url: string, init: RequestInit) =>
+  vraagGoogle(haal, url, init, { timeoutMs: TIMEOUT_MS, fout: nietBeschikbaar });
 
 type AutocompleteAntwoord = {
   suggestions?: {
