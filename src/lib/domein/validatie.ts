@@ -23,6 +23,7 @@ export const stopSchema = locatieSchema.extend({
 });
 
 export const stopsSchema = z.array(stopSchema).max(MAX_STOPS, `Maximaal ${MAX_STOPS} locaties`).default([]);
+export const puntSchema = z.object({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180) });
 
 export const taakVeldenSchema = z.object({
   titel: z.string().trim().min(1, 'Titel is verplicht').max(200, 'Titel is te lang'),

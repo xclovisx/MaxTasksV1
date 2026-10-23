@@ -1,9 +1,11 @@
 'use server';
 
 import { stopReeks, wijzigReeks } from '@/lib/diensten/herhalingen';
+import { planRoute, type RoutePlan } from '@/lib/diensten/route';
 import {
   type HistorieRegel, maakTaak, taakHistorie, verplaatsTaak, verwijderTaak, wijzigTaak, zetStatus,
 } from '@/lib/diensten/taken';
+import type { Punt } from '@/lib/domein/navigatie';
 import type { Status } from '@/lib/domein/taak';
 import type { NieuweTaakInvoer, ReeksInvoer, TaakVeldenInvoer } from '@/lib/domein/validatie';
 import { type ActieResultaat, voerUit } from '@/lib/web/actie';
@@ -45,5 +47,12 @@ export async function historieActie(id: string): Promise<ActieResultaat<Historie
   return voerUit(async () => {
     await ctx(); // alleen ingelogde gebruikers
     return taakHistorie(id);
+  });
+}
+
+export async function planRouteActie(taakId: string, start: Punt | null): Promise<ActieResultaat<RoutePlan>> {
+  return voerUit(async () => {
+    await ctx(); // alleen ingelogde gebruikers
+    return planRoute(taakId, start);
   });
 }
