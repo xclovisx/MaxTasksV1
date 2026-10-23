@@ -30,8 +30,10 @@ export default async function BordPagina({
 
   const vandaag = vandaagInAmsterdam();
   const maandag = (week && parseWeekCode(week)) || maandagVan(vandaag);
-  const taken = await takenVoorPeriode(bord.id, maandag, plusDagen(maandag, 6));
-  const afwezigheid = await afwezighedenInPeriode(maandag, plusDagen(maandag, 6));
+  const [taken, afwezigheid] = await Promise.all([
+    takenVoorPeriode(bord.id, maandag, plusDagen(maandag, 6)),
+    afwezighedenInPeriode(maandag, plusDagen(maandag, 6)),
+  ]);
   const dagen = dagenVoorWeek(maandag, werkdagen, taken.map((t) => t.datum));
 
   return (

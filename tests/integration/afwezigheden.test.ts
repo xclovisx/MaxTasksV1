@@ -42,6 +42,15 @@ describe('afwezigheden', () => {
     await expect(wijzigAfwezigheid(beheerder, 'geen-uuid', tandarts)).rejects.toBeInstanceOf(NietGevonden);
   });
 
+  it('bewaart het interval van een elke-x-weken-blok', async () => {
+    await maakAfwezigheid(beheerder, {
+      ...tandarts, herhaling: { type: 'elke_x_weken', weekdagen: [], intervalWeken: 3 },
+    });
+    const [blok] = await lijstAfwezigheden();
+    expect(blok.herhalingType).toBe('elke_x_weken');
+    expect(blok.intervalWeken).toBe(3);
+  });
+
   it('geeft per dag de blokken met de naam van de beheerder', async () => {
     await maakAfwezigheid(beheerder, tandarts);
     await maakAfwezigheid(beheerder, {

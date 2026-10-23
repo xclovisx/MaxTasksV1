@@ -6,7 +6,7 @@ import { maakAfwezigheidActie, wijzigAfwezigheidActie } from '@/app/(app)/beschi
 import { Invoer, Keuzelijst, Knop, Melding, Veld } from '@/components/ui';
 import { cn } from '@/lib/cn';
 import { type Afwezigheid, HERHALING_LABELS_AFWEZIG } from '@/lib/domein/afwezigheid';
-import { DAGNAMEN_KORT, type Datum, weekdag } from '@/lib/domein/datums';
+import { DAGNAMEN, DAGNAMEN_KORT, type Datum, weekdag } from '@/lib/domein/datums';
 import type { HerhalingType } from '@/lib/domein/herhaling';
 
 type Herhalen = 'geen' | HerhalingType;
@@ -111,6 +111,7 @@ export function AfwezigheidFormulier({
               key={d}
               type="button"
               aria-pressed={weekdagen.includes(d)}
+              aria-label={DAGNAMEN[d]}
               onClick={() => setWeekdagen((w) => (w.includes(d) ? w.filter((x) => x !== d) : [...w, d].sort((a, b) => a - b)))}
               className={cn(
                 'h-8 w-10 rounded-lg border text-xs',

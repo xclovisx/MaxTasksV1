@@ -1,6 +1,6 @@
 import type { Context } from '../context';
-import { db, pgIntArray } from '../db/client';
-import { meldAfwezigheidGewijzigd } from '../db/gebeurtenissen';
+import { db, pgIntArray, transactie } from '../db/client';
+import { AFWEZIGHEID_SEIN, meldWijziging } from '../db/gebeurtenissen';
 import {
   type Afwezigheid, afwezigheidsDagen, afwezigheidWaarschuwing as waarschuwingTekst, vergelijkAfwezigheden,
 } from '../domein/afwezigheid';
@@ -24,7 +24,7 @@ export async function lijstAfwezigheden(): Promise<Afwezigheid[]> {
 }
 
 async function beheerderNaam(): Promise<string> {
-  const [g] = await db()<{ naam: string }[]>`select naam from gebruikers where rol = 'beheerder' order by aangemaakt_op limit 1`;
+  const [g] = await db()<{ naam: string }[]>`select naam from gebruikers where rol = 'beheerder' and actief order by aangemaakt_op limit 1`;
   return g?.naam ?? 'De beheerder';
 }
 
@@ -57,13 +57,15 @@ export async function maakAfwezigheid(ctx: Context, invoer: AfwezigheidInvoer): 
   vereisBeheerder(ctx);
   const v = afwezigheidSchema.parse(invoer);
   const h = herhaalKolommen(v.herhaling);
-  const [r] = await db()<{ id: string }[]>`
-    insert into afwezigheden (begindatum, einddatum, hele_dag, van, tot, reden, herhaling_type, weekdagen, interval_weken, aangemaakt_door)
-    values (${v.begindatum}, ${v.einddatum}, ${v.heleDag}, ${v.van}, ${v.tot}, ${v.reden}, ${h.type},
-            ${h.weekdagen}::int[], ${h.interval}, ${ctx.gebruikerId})
-    returning id`;
-  await meldAfwezigheidGewijzigd();
-  return { id: r.id };
+  return transactie(async (tx) => {
+    const [r] = await tx<{ id: string }[]>`
+      insert into afwezigheden (begindatum, einddatum, hele_dag, van, tot, reden, herhaling_type, weekdagen, interval_weken, aangemaakt_door)
+      values (${v.begindatum}, ${v.einddatum}, ${v.heleDag}, ${v.van}, ${v.tot}, ${v.reden}, ${h.type},
+              ${h.weekdagen}::int[], ${h.interval}, ${ctx.gebruikerId})
+      returning id`;
+    await meldWijziging(tx, AFWEZIGHEID_SEIN);
+    return { id: r.id };
+  });
 }
 
 export async function wijzigAfwezigheid(ctx: Context, id: string, invoer: AfwezigheidInvoer): Promise<void> {
@@ -71,20 +73,24 @@ export async function wijzigAfwezigheid(ctx: Context, id: string, invoer: Afwezi
   if (!isUuid(id)) throw new NietGevonden(NIET_GEVONDEN);
   const v = afwezigheidSchema.parse(invoer);
   const h = herhaalKolommen(v.herhaling);
-  const rijen = await db()`
-    update afwezigheden set
-      begindatum = ${v.begindatum}, einddatum = ${v.einddatum}, hele_dag = ${v.heleDag}, van = ${v.van}, tot = ${v.tot},
-      reden = ${v.reden}, herhaling_type = ${h.type}, weekdagen = ${h.weekdagen}::int[], interval_weken = ${h.interval}
-    where id = ${id}
-    returning id`;
-  if (rijen.length === 0) throw new NietGevonden(NIET_GEVONDEN);
-  await meldAfwezigheidGewijzigd();
+  await transactie(async (tx) => {
+    const rijen = await tx`
+      update afwezigheden set
+        begindatum = ${v.begindatum}, einddatum = ${v.einddatum}, hele_dag = ${v.heleDag}, van = ${v.van}, tot = ${v.tot},
+        reden = ${v.reden}, herhaling_type = ${h.type}, weekdagen = ${h.weekdagen}::int[], interval_weken = ${h.interval}
+      where id = ${id}
+      returning id`;
+    if (rijen.length === 0) throw new NietGevonden(NIET_GEVONDEN);
+    await meldWijziging(tx, AFWEZIGHEID_SEIN);
+  });
 }
 
 export async function verwijderAfwezigheid(ctx: Context, id: string): Promise<void> {
   vereisBeheerder(ctx);
   if (!isUuid(id)) throw new NietGevonden(NIET_GEVONDEN);
-  const rijen = await db()`delete from afwezigheden where id = ${id} returning id`;
-  if (rijen.length === 0) throw new NietGevonden(NIET_GEVONDEN);
-  await meldAfwezigheidGewijzigd();
+  await transactie(async (tx) => {
+    const rijen = await tx`delete from afwezigheden where id = ${id} returning id`;
+    if (rijen.length === 0) throw new NietGevonden(NIET_GEVONDEN);
+    await meldWijziging(tx, AFWEZIGHEID_SEIN);
+  });
 }
