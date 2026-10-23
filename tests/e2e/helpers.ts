@@ -1,6 +1,7 @@
 import { expect, type Page } from '@playwright/test';
 import { hashWachtwoord } from '../../src/lib/auth/wachtwoord';
 import { maakSql } from '../../src/lib/db/client';
+import { vandaagInAmsterdam } from '../../src/lib/domein/datums';
 import { E2E_DATABASE_URL } from './gegevens';
 
 export async function inloggen(page: Page, gebruikersnaam: string, wachtwoord: string) {
@@ -25,5 +26,26 @@ export async function maakMedewerker(): Promise<{ gebruikersnaam: string; wachtw
 export async function maakOpgeslagenLocatie(naam: string, adres: string, lat: number, lng: number): Promise<void> {
   const sql = maakSql(E2E_DATABASE_URL, { max: 1 });
   await sql`insert into locaties (naam, adres, lat, lng) values (${naam}, ${adres}, ${lat}, ${lng})`;
+  await sql.end();
+}
+
+export async function zetGarage(lat: number, lng: number): Promise<void> {
+  const sql = maakSql(E2E_DATABASE_URL, { max: 1 });
+  await sql`update instellingen set garage_adres = 'Dorpsstraat 1, Rijsbergen', garage_lat = ${lat}, garage_lng = ${lng}`;
+  await sql.end();
+}
+
+/** Zet vandaag een taak met stops op het eerste bord. */
+export async function maakTaakMetStops(titel: string, stops: { naam: string; adres: string; lat: number; lng: number }[]): Promise<void> {
+  const sql = maakSql(E2E_DATABASE_URL, { max: 1 });
+  const datum = vandaagInAmsterdam();
+  const [bord] = await sql<{ id: string }[]>`select id from borden where not gearchiveerd order by aangemaakt_op limit 1`;
+  const [taak] = await sql<{ id: string }[]>`
+    insert into taken (bord_id, titel, datum, prioriteit, oorspronkelijke_datum)
+    values (${bord.id}, ${titel}, ${datum}, 'middel', ${datum}) returning id`;
+  for (const [i, s] of stops.entries()) {
+    await sql`insert into taak_stops (taak_id, volgorde, naam, adres, lat, lng)
+      values (${taak.id}, ${i + 1}, ${s.naam}, ${s.adres}, ${s.lat}, ${s.lng})`;
+  }
   await sql.end();
 }

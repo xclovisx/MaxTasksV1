@@ -13,10 +13,10 @@ import type { Locatie } from '@/lib/diensten/locaties';
 import type { HistorieRegel, Taak } from '@/lib/diensten/taken';
 import { DAGNAMEN_KORT, type Datum, formatMoment, weekdag } from '@/lib/domein/datums';
 import { HERHALING_LABELS, type HerhalingType } from '@/lib/domein/herhaling';
-import { navigatieUrl } from '@/lib/domein/navigatie';
 import { PRIORITEIT_LABEL, PRIORITEITEN, type Prioriteit, type Status, STATUS_LABEL, STATUSSEN } from '@/lib/domein/taak';
 import type { StopInvoer } from '@/lib/domein/validatie';
 import type { ActieResultaat } from '@/lib/web/actie';
+import { NavigatieBlok } from './navigatie-blok';
 import { PRIO_KNOP_AAN, STATUS_PIL } from './stijl';
 import { StopsEditor } from './stops-editor';
 
@@ -182,30 +182,7 @@ export function TaakDialoog({ modus, isBeheerder, onSluit }: { modus: DialoogMod
           </div>
         )}
 
-        {taak && taak.stops.length > 0 && (
-          <div className="mb-5 rounded-lg border border-rand bg-achtergrond p-3">
-            <span className="mb-2 block text-xs font-medium text-tekst-zacht">{taak.stops.length === 1 ? 'Locatie' : 'Locaties'}</span>
-            <ol className="space-y-2">
-              {taak.stops.map((s, i) => (
-                <li key={`${i}-${s.adres}`} className="flex items-center gap-2 text-sm">
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate font-medium">{taak.stops.length > 1 ? `${i + 1}. ` : ''}{s.naam}</span>
-                    <span className="block truncate text-xs text-tekst-flauw">{s.adres}</span>
-                  </span>
-                  <a
-                    href={navigatieUrl(s)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    aria-label={`Navigeer naar ${s.naam}`}
-                    className="shrink-0 rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-accent-donker hover:bg-accent/90"
-                  >
-                    Navigeer
-                  </a>
-                </li>
-              ))}
-            </ol>
-          </div>
-        )}
+        {taak && taak.stops.length > 0 && <NavigatieBlok taakId={taak.id} stops={taak.stops} />}
 
         {isReeks && (
           <div className="mb-4 grid grid-cols-2 gap-1 rounded-lg bg-achtergrond p-1" role="radiogroup" aria-label="Wat wil je bewerken?">
