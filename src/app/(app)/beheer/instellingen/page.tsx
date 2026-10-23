@@ -1,15 +1,19 @@
-import { wijzigInstellingenActie, wijzigWachtwoordActie } from '../acties';
+import { wijzigInstellingenActie, wijzigMeldingenActie, wijzigWachtwoordActie } from '../acties';
 import { ActieFormulier } from '@/components/actie-formulier';
 import { GarageAdresKiezer } from '@/components/beheer/garage-adres-kiezer';
+import { TestmeldingKnop } from '@/components/beheer/testmelding-knop';
 import { WerkdagenKeuze } from '@/components/beheer/werkdagen-keuze';
 import { Invoer, Paneel, Veld } from '@/components/ui';
 import { haalInstellingen } from '@/lib/diensten/instellingen';
 import { lijstLocaties } from '@/lib/diensten/locaties';
+import { haalNtfyOnderwerp } from '@/lib/diensten/meldingen';
+import { ntfyServer } from '@/lib/meldingen/ntfy';
 import { vereisBeheerderSessie } from '@/lib/web/huidige-gebruiker';
 
 export default async function InstellingenPagina() {
   await vereisBeheerderSessie();
-  const [instellingen, locaties] = await Promise.all([haalInstellingen(), lijstLocaties()]);
+  const [instellingen, locaties, onderwerp] = await Promise.all([haalInstellingen(), lijstLocaties(), haalNtfyOnderwerp()]);
+  const server = ntfyServer();
   return (
     <div className="space-y-4">
       <Paneel titel="Garage">
@@ -25,6 +29,21 @@ export default async function InstellingenPagina() {
             <WerkdagenKeuze gekozen={instellingen.werkdagen} />
           </div>
         </ActieFormulier>
+      </Paneel>
+      <Paneel titel="Meldingen" className="max-w-md">
+        <div className="space-y-4">
+          <p className="text-xs text-tekst-zacht">
+            {server
+              ? `Pushmeldingen gaan via ${server} naar de ntfy-app op je telefoon.`
+              : 'NTFY_URL is nog niet ingesteld in .env, dus er worden geen meldingen verstuurd.'}
+          </p>
+          <ActieFormulier actie={wijzigMeldingenActie} knop="Opslaan" knopVariant="secundair" wisNaSucces={false}>
+            <Veld label="ntfy-onderwerp" hint="Abonneer je in de ntfy-app op dit onderwerp. Alleen letters, cijfers, - en _. Kies iets dat niet te raden is.">
+              <Invoer name="ntfyOnderwerp" defaultValue={onderwerp ?? ''} maxLength={64} pattern="[A-Za-z0-9_\-]*" />
+            </Veld>
+          </ActieFormulier>
+          <TestmeldingKnop />
+        </div>
       </Paneel>
       <Paneel titel="Wachtwoord wijzigen" className="max-w-md">
         <ActieFormulier actie={wijzigWachtwoordActie} knop="Wachtwoord wijzigen">

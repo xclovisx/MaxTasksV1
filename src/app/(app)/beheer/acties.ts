@@ -5,6 +5,7 @@ import type { Activatie } from '@/lib/auth/activatie';
 import { maakBord, wijzigBord } from '@/lib/diensten/borden';
 import { wijzigInstellingen } from '@/lib/diensten/instellingen';
 import { maakMedewerker, nieuweActivatie, zetActief } from '@/lib/diensten/medewerkers';
+import { stuurTestmelding, wijzigNtfyOnderwerp } from '@/lib/diensten/meldingen';
 import { Ongeldig } from '@/lib/fouten';
 import { type ActieResultaat, type ActivatieWeergave, voerUit } from '@/lib/web/actie';
 import { contextVan, vereisBeheerderSessie } from '@/lib/web/huidige-gebruiker';
@@ -71,6 +72,20 @@ export async function wijzigWachtwoordActie(f: FormData): Promise<ActieResultaat
     const g = await vereisBeheerderSessie();
     if (tekst(f, 'nieuw') !== tekst(f, 'herhaal')) throw new Ongeldig('De nieuwe wachtwoorden zijn niet gelijk.');
     await wijzigEigenWachtwoord(g.id, tekst(f, 'huidig'), tekst(f, 'nieuw'));
+    return null;
+  });
+}
+
+export async function wijzigMeldingenActie(f: FormData): Promise<ActieResultaat> {
+  return voerUit(async () => {
+    await wijzigNtfyOnderwerp(await ctx(), tekst(f, 'ntfyOnderwerp'));
+    return null;
+  });
+}
+
+export async function stuurTestmeldingActie(): Promise<ActieResultaat> {
+  return voerUit(async () => {
+    await stuurTestmelding(await ctx());
     return null;
   });
 }

@@ -53,7 +53,7 @@ Alles draait met Docker Compose op een eigen server (VPS).
 - **Tijdzone:** alle datumlogica in `Europe/Amsterdam`. Taakdatums worden opgeslagen als `date` en tijden als `time`, dus zonder tijdzone.
 - **Externe diensten:** Google Places API (New) voor het aanvullen van adressen en Google Routes API (fase 3) voor de optimale volgorde. Beide worden alleen vanaf de server aangeroepen, met één sleutel (`GOOGLE_MAPS_API_KEY`, beperkt tot de server-IP en deze API's), zodat er geen sleutel in de browser staat. In Google Cloud wordt een budgetwaarschuwing ingesteld.
 - **Back-up:** de `worker` draait elke nacht om 03:00 `pg_dump` naar een volume en bewaart 14 dagen.
-- **Configuratie:** via `.env`: database-wachtwoorden, Google-sleutel, ntfy-token en de publieke URL.
+- **Configuratie:** via `.env`: database-wachtwoorden, Google-sleutel, ntfy-server en -token (`NTFY_URL`, `NTFY_TOKEN`) en de publieke URL.
 - **Eerste beheerder:** wordt aangemaakt met het CLI-commando `npm run maak-beheerder`, uitgevoerd in de `app`-container.
 
 ## 4. Rollen en rechten
@@ -148,7 +148,7 @@ De `worker` draait elke dag om 00:05 (Europe/Amsterdam), en ook bij het opstarte
 Elke wijziging stuurt de `versie` mee. Komt die niet overeen, dan volgt HTTP 409 en de melding "Deze taak is zojuist gewijzigd door <naam>. Herladen?". Er wordt niets stil overschreven.
 
 ### 7.6 Meldingen
-Wordt een taak aangemaakt met prioriteit **zsm** of **nu**, of wordt de prioriteit daarnaar verhoogd, dan stuurt de `app` een ntfy-bericht naar het onderwerp van het bedrijf, met titel, bedrijf en een link naar de taak. Mislukt dat, dan wordt het alleen gelogd en wordt de taak gewoon opgeslagen. In het adminpaneel staat een knop "Stuur testmelding".
+Maakt een **medewerker** een taak met prioriteit **zsm** of **nu**, of verhoogt hij de prioriteit daarnaar (ook zsm → nu), dan stuurt de `app` na het opslaan een ntfy-bericht naar het ingestelde onderwerp (Beheer → Instellingen → Meldingen). Het bericht bevat de prioriteit, de titel, het bord, de dag en een link naar "Vandaag" op die dag. Bewuste keuzes: acties van de beheerder zelf geven geen melding, en het wijzigen van een hele reeks ook niet. Mislukt de melding, dan wordt dat alleen gelogd en blijft de taak gewoon opgeslagen. In Instellingen staat een knop "Stuur testmelding".
 
 ### 7.7 Live bijwerken
 Het bord abonneert zich via Server-Sent Events op wijzigingen van het getoonde bord (of op alle bedrijven, in het beheerdersoverzicht "Vandaag"). Bij een wijziging haalt de client de betreffende dag opnieuw op. Bij verbroken verbinding wordt automatisch opnieuw verbonden, en daarna wordt de hele week opnieuw opgehaald.
@@ -168,10 +168,11 @@ Het bord abonneert zich via Server-Sent Events op wijzigingen van het getoonde b
 
 ### 8.3 Route plannen
 1. De browser vraagt de huidige locatie op (Geolocation API, timeout van 8 seconden). Wordt die geweigerd of is die niet beschikbaar, dan is het startpunt de garage, met een melding.
-2. `POST /api/taken/:id/route` met het startpunt. De server roept de **Google Routes API** `computeRoutes` aan met `travelMode=DRIVE`, `routingPreference=TRAFFIC_AWARE`, `optimizeWaypointOrder=true`, origin = startpunt, destination = garage en intermediates = de stops.
+2. De server action `planRouteActie` krijgt het startpunt (bewuste keuze: een server action zoals de rest van de app, in plaats van een API-route). De server roept de **Google Routes API** `computeRoutes` aan met `travelMode=DRIVE`, `routingPreference=TRAFFIC_AWARE`, `optimizeWaypointOrder=true`, origin = startpunt, destination = garage en intermediates = de stops.
 3. Het antwoord bevat de volgorde, de reistijd per deel, de totale tijd en de afstand. De berekende volgorde wordt niet opgeslagen; hij geldt alleen voor dit moment.
 4. De knop **"Start route in Google Maps"** opent `https://www.google.com/maps/dir/?api=1&origin=<start>&destination=<garage>&waypoints=<stop1>|<stop2>|…&travelmode=driving` met de stops in de berekende volgorde. Tikken op één stop navigeert alleen naar die stop.
 5. **Faalt de Google-aanroep** (fout, tegoed op, timeout van 10 seconden), dan volgt de melding "Volgorde kon niet berekend worden" en opent de knop Maps met de stops in de ingevoerde volgorde.
+6. **Geen garage-adres ingesteld:** de volgorde wordt niet berekend. De melding "Er is nog geen garage-adres ingesteld (Beheer → Instellingen). De volgorde is niet berekend." verschijnt, en Maps opent met de stops in de ingevoerde volgorde, eindigend bij de laatste stop.
 
 ## 9. Gebruikersinterface
 
@@ -194,7 +195,7 @@ Het bord abonneert zich via Server-Sent Events op wijzigingen van het getoonde b
 - **Borden:** per bedrijf aanmaken, hernoemen, archiveren.
 - **Medewerkers:** toevoegen, deactiveren, "Nieuwe link" (link en code met kopieerknop).
 - **Locaties:** opgeslagen locaties per bedrijf bekijken, bewerken en verwijderen.
-- **Instellingen:** eigen wachtwoord wijzigen, testmelding versturen.
+- **Instellingen:** eigen wachtwoord wijzigen, ntfy-onderwerp instellen en een testmelding versturen.
 
 ## 10. Foutafhandeling
 
