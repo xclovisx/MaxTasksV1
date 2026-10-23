@@ -81,6 +81,7 @@ describe('Google Routes-client', () => {
       { routes: [{ ...r, optimizedIntermediateWaypointIndex: [0, 0] }] },
       { routes: [{ ...r, optimizedIntermediateWaypointIndex: [-1] }] },
       { routes: [{ ...r, legs: r.legs.slice(1) }] },
+      { routes: [{ ...r, legs: [null, r.legs[1], r.legs[2]] }] },
       { routes: [{ ...r, duration: 'lang' }] },
     ]) {
       await expect(berekenRoute(invoer, antwoord(kapot))).rejects.toBeInstanceOf(RouteNietBeschikbaar);

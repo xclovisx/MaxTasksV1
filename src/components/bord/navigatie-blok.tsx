@@ -13,14 +13,23 @@ const ACCENT_LINK =
 
 /** Huidige locatie van het apparaat, of null als die geweigerd of niet beschikbaar is. */
 function huidigeLocatie(): Promise<Punt | null> {
-  return new Promise((klaar) => {
+  return new Promise((resolve) => {
+    let klaar = false;
+    const rond = (p: Punt | null) => {
+      if (klaar) return;
+      klaar = true;
+      clearTimeout(wekker);
+      resolve(p);
+    };
+    // De timeout van de browser telt pas na de toestemming; een onbeantwoorde vraag blokkeert anders het plannen.
+    const wekker = setTimeout(() => rond(null), LOCATIE_TIMEOUT_MS);
     if (!('geolocation' in navigator)) {
-      klaar(null);
+      rond(null);
       return;
     }
     navigator.geolocation.getCurrentPosition(
-      (p) => klaar({ lat: p.coords.latitude, lng: p.coords.longitude }),
-      () => klaar(null),
+      (p) => rond({ lat: p.coords.latitude, lng: p.coords.longitude }),
+      () => rond(null),
       { timeout: LOCATIE_TIMEOUT_MS, maximumAge: 60_000 },
     );
   });
@@ -33,7 +42,7 @@ export function NavigatieBlok({ taakId, stops }: { taakId: string; stops: Stop[]
   const [fout, setFout] = useState<string | null>(null);
   const [bezig, start] = useTransition();
   const meerdere = stops.length > 1;
-  const volgorde = plan?.volgorde ?? stops.map((_, i) => i);
+  const getoond = plan?.stops ?? stops;
   const terug = plan?.delen?.at(-1);
 
   function planRoute() {
@@ -42,8 +51,12 @@ export function NavigatieBlok({ taakId, stops }: { taakId: string; stops: Stop[]
       try {
         const r = await planRouteActie(taakId, await huidigeLocatie());
         if (r.ok) setPlan(r.data);
-        else setFout(r.fout);
+        else {
+          setPlan(null);
+          setFout(r.fout);
+        }
       } catch {
+        setPlan(null);
         setFout('Route plannen lukt nu niet. Probeer het opnieuw.');
       }
     });
@@ -53,11 +66,10 @@ export function NavigatieBlok({ taakId, stops }: { taakId: string; stops: Stop[]
     <div className="mb-5 rounded-lg border border-rand bg-achtergrond p-3">
       <span className="mb-2 block text-xs font-medium text-tekst-zacht">{meerdere ? 'Locaties' : 'Locatie'}</span>
       <ol className="space-y-2">
-        {volgorde.map((i, n) => {
-          const s = stops[i];
+        {getoond.map((s, n) => {
           const deel = plan?.delen?.[n];
           return (
-            <li key={`${i}-${s.adres}`} className="flex items-center gap-2 text-sm">
+            <li key={`${n}-${s.adres}`} className="flex items-center gap-2 text-sm">
               <span className="min-w-0 flex-1">
                 <span className="block truncate font-medium">{meerdere ? `${n + 1}. ` : ''}{s.naam}</span>
                 <span className="block truncate text-xs text-tekst-flauw">{deel ? `${reis(deel)} rijden · ${s.adres}` : s.adres}</span>

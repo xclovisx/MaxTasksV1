@@ -73,7 +73,12 @@ describe('route plannen', () => {
       ],
       totaalSec: 2400,
       totaalMeters: 31000,
-      url: 'https://www.google.com/maps/dir/?api=1&origin=51.6%2C4.8&destination=51.55%2C4.7&waypoints=51.53%2C4.73%7C51.51%2C4.71%7C51.52%2C4.72&travelmode=driving',
+      stops: [
+        { naam: 'C', adres: 'C-straat 1', lat: 51.53, lng: 4.73 },
+        { naam: 'A', adres: 'A-straat 1', lat: 51.51, lng: 4.71 },
+        { naam: 'B', adres: 'B-straat 1', lat: 51.52, lng: 4.72 },
+      ],
+      url: 'https://www.google.com/maps/dir/?api=1&destination=51.55%2C4.7&waypoints=51.53%2C4.73%7C51.51%2C4.71%7C51.52%2C4.72&travelmode=driving',
     });
     const body = verzondenBody(haal);
     expect(body.origin).toEqual({ location: { latLng: { latitude: 51.6, longitude: 4.8 } } });
@@ -81,12 +86,13 @@ describe('route plannen', () => {
     expect(body.intermediates).toHaveLength(3);
   });
 
-  it('zonder huidige locatie start de route bij de garage', async () => {
+  it('zonder huidige locatie wordt vanaf de garage berekend, maar start Maps bij je eigen locatie', async () => {
     await zetGarage();
     const haal = googleAntwoord(geoptimaliseerd);
     const plan = await planRoute(taakId, null, haal);
     expect(plan.meldingen).toEqual([MELDING_GEEN_LOCATIE]);
-    expect(plan.url).toContain('origin=51.55%2C4.7&destination=51.55%2C4.7');
+    expect(plan.url).not.toContain('origin=');
+    expect(plan.url).toContain('destination=51.55%2C4.7');
     expect(verzondenBody(haal).origin).toEqual({ location: { latLng: { latitude: 51.55, longitude: 4.7 } } });
   });
 
@@ -99,7 +105,12 @@ describe('route plannen', () => {
       delen: null,
       totaalSec: null,
       totaalMeters: null,
-      url: 'https://www.google.com/maps/dir/?api=1&origin=51.6%2C4.8&destination=51.55%2C4.7&waypoints=51.51%2C4.71%7C51.52%2C4.72%7C51.53%2C4.73&travelmode=driving',
+      stops: [
+        { naam: 'A', adres: 'A-straat 1', lat: 51.51, lng: 4.71 },
+        { naam: 'B', adres: 'B-straat 1', lat: 51.52, lng: 4.72 },
+        { naam: 'C', adres: 'C-straat 1', lat: 51.53, lng: 4.73 },
+      ],
+      url: 'https://www.google.com/maps/dir/?api=1&destination=51.55%2C4.7&waypoints=51.51%2C4.71%7C51.52%2C4.72%7C51.53%2C4.73&travelmode=driving',
     });
   });
 
@@ -109,7 +120,8 @@ describe('route plannen', () => {
     expect(haal).not.toHaveBeenCalled();
     expect(plan.geoptimaliseerd).toBe(false);
     expect(plan.meldingen).toEqual([MELDING_GEEN_GARAGE]);
-    expect(plan.url).toBe('https://www.google.com/maps/dir/?api=1&origin=51.6%2C4.8&destination=51.53%2C4.73&waypoints=51.51%2C4.71%7C51.52%2C4.72&travelmode=driving');
+    expect(plan.stops.map((s) => s.naam)).toEqual(['A', 'B', 'C']);
+    expect(plan.url).toBe('https://www.google.com/maps/dir/?api=1&destination=51.53%2C4.73&waypoints=51.51%2C4.71%7C51.52%2C4.72&travelmode=driving');
   });
 
   it('weigert een taak met minder dan 2 stops en een ongeldig startpunt', async () => {

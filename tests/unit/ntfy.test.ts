@@ -48,8 +48,13 @@ describe('ntfy-client', () => {
 
   it('foutstatus of netwerkfout: mislukt', async () => {
     const geweigerd = vi.fn(async () => new Response('', { status: 403 })) as unknown as typeof fetch;
-    await expect(stuurNtfy('garage-max', bericht, geweigerd)).rejects.toBeInstanceOf(NtfyMislukt);
+    const fout = await stuurNtfy('garage-max', bericht, geweigerd).catch((e: unknown) => e);
+    expect(fout).toBeInstanceOf(NtfyMislukt);
+    expect((fout as NtfyMislukt).status).toBe(403);
     const kapot = vi.fn(async () => { throw new Error('netwerk'); }) as unknown as typeof fetch;
-    await expect(stuurNtfy('garage-max', bericht, kapot)).rejects.toBeInstanceOf(NtfyMislukt);
+    const netwerkfout = await stuurNtfy('garage-max', bericht, kapot).catch((e: unknown) => e);
+    expect(netwerkfout).toBeInstanceOf(NtfyMislukt);
+    expect((netwerkfout as NtfyMislukt).status).toBeNull();
+    expect(((netwerkfout as NtfyMislukt).cause as Error).message).toBe('Error: netwerk');
   });
 });

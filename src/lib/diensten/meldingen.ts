@@ -26,8 +26,9 @@ export async function wijzigNtfyOnderwerp(ctx: Context, onderwerp: string): Prom
 export async function meldUrgenteTaak(ctx: Context, oud: Prioriteit | null, t: UrgenteTaak, haal: typeof fetch = fetch): Promise<void> {
   if (ctx.rol === 'beheerder' || !isUrgentVerhoogd(oud, t.prioriteit)) return; // de beheerder hoeft zichzelf niet te melden
   try {
+    if (!ntfyServer()) return;
     const onderwerp = await haalNtfyOnderwerp();
-    if (!onderwerp || !ntfyServer()) return;
+    if (!onderwerp) return;
     const [bord] = await db()<{ naam: string }[]>`select naam from borden where id = ${t.bordId}`;
     await stuurNtfy(onderwerp, urgentBericht({ ...t, bordNaam: bord?.naam ?? 'Takenbord' }, appUrl()), haal);
   } catch (e) {

@@ -167,10 +167,10 @@ Het bord abonneert zich via Server-Sent Events op wijzigingen van het getoonde b
 - **2 of meer stops:** een knop **"Plan route"**. De berekening gebeurt pas na de tik, niet bij het openen.
 
 ### 8.3 Route plannen
-1. De browser vraagt de huidige locatie op (Geolocation API, timeout van 8 seconden). Wordt die geweigerd of is die niet beschikbaar, dan is het startpunt de garage, met een melding.
+1. De browser vraagt de huidige locatie op (Geolocation API, timeout van 8 seconden). Wordt die geweigerd of is die niet beschikbaar, dan is het startpunt voor de berekening de garage, met de melding "Je huidige locatie is niet beschikbaar. De volgorde is berekend vanaf de garage."
 2. De server action `planRouteActie` krijgt het startpunt (bewuste keuze: een server action zoals de rest van de app, in plaats van een API-route). De server roept de **Google Routes API** `computeRoutes` aan met `travelMode=DRIVE`, `routingPreference=TRAFFIC_AWARE`, `optimizeWaypointOrder=true`, origin = startpunt, destination = garage en intermediates = de stops.
 3. Het antwoord bevat de volgorde, de reistijd per deel, de totale tijd en de afstand. De berekende volgorde wordt niet opgeslagen; hij geldt alleen voor dit moment.
-4. De knop **"Start route in Google Maps"** opent `https://www.google.com/maps/dir/?api=1&origin=<start>&destination=<garage>&waypoints=<stop1>|<stop2>|…&travelmode=driving` met de stops in de berekende volgorde. Tikken op één stop navigeert alleen naar die stop.
+4. De knop **"Start route in Google Maps"** opent `https://www.google.com/maps/dir/?api=1&destination=<garage>&waypoints=<stop1>|<stop2>|…&travelmode=driving` met de stops in de berekende volgorde. De link bevat bewust geen `origin`, zodat Maps start vanaf de huidige locatie van het apparaat (bewuste keuze van Max). Tikken op één stop navigeert alleen naar die stop.
 5. **Faalt de Google-aanroep** (fout, tegoed op, timeout van 10 seconden), dan volgt de melding "Volgorde kon niet berekend worden" en opent de knop Maps met de stops in de ingevoerde volgorde.
 6. **Geen garage-adres ingesteld:** de volgorde wordt niet berekend. De melding "Er is nog geen garage-adres ingesteld (Beheer → Instellingen). De volgorde is niet berekend." verschijnt, en Maps opent met de stops in de ingevoerde volgorde, eindigend bij de laatste stop.
 

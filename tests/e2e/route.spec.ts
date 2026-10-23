@@ -26,19 +26,19 @@ test.describe('met toestemming voor de locatie', () => {
     await expect(dialoog.getByText('Volgorde kon niet berekend worden')).toBeVisible({ timeout: 15_000 });
     await expect(dialoog.getByRole('link', { name: 'Start route in Google Maps' })).toHaveAttribute(
       'href',
-      'https://www.google.com/maps/dir/?api=1&origin=51.6%2C4.8&destination=51.55%2C4.7&waypoints=51.51%2C4.71%7C51.52%2C4.72&travelmode=driving',
+      'https://www.google.com/maps/dir/?api=1&destination=51.55%2C4.7&waypoints=51.51%2C4.71%7C51.52%2C4.72&travelmode=driving',
     );
   });
 });
 
-test('zonder toestemming voor de locatie start de route bij de garage', async ({ page }) => {
+test('zonder toestemming voor de locatie wordt vanaf de garage berekend', async ({ page }) => {
   await zetGarage(51.55, 4.7);
   await maakTaakMetStops('Ronde zonder locatie', STOPS);
   const dialoog = await openTaak(page, 'Ronde zonder locatie');
   await dialoog.getByRole('button', { name: 'Plan route' }).click();
-  await expect(dialoog.getByText('De route start bij de garage')).toBeVisible({ timeout: 15_000 });
+  await expect(dialoog.getByText('De volgorde is berekend vanaf de garage')).toBeVisible({ timeout: 15_000 });
   await expect(dialoog.getByRole('link', { name: 'Start route in Google Maps' })).toHaveAttribute(
     'href',
-    'https://www.google.com/maps/dir/?api=1&origin=51.55%2C4.7&destination=51.55%2C4.7&waypoints=51.51%2C4.71%7C51.52%2C4.72&travelmode=driving',
+    'https://www.google.com/maps/dir/?api=1&destination=51.55%2C4.7&waypoints=51.51%2C4.71%7C51.52%2C4.72&travelmode=driving',
   );
 });

@@ -34,6 +34,8 @@ Adressen zoeken via Google is optioneel. Zonder sleutel kun je wel opgeslagen lo
    ```
 De sleutel wordt alleen op de server gebruikt en komt nooit in de browser.
 
+Open de routelink bij voorkeur in de Google Maps-app. In een mobiele browser toont Google Maps mogelijk niet alle tussenstops.
+
 ## Meldingen (ntfy)
 
 Bij een taak met "Zo snel mogelijk" of "Nu" van een medewerker krijgt de beheerder een pushmelding via [ntfy](https://ntfy.sh). Taken die de beheerder zelf aanmaakt, geven geen melding.

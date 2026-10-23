@@ -14,6 +14,7 @@ export default async function InstellingenPagina() {
   await vereisBeheerderSessie();
   const [instellingen, locaties, onderwerp] = await Promise.all([haalInstellingen(), lijstLocaties(), haalNtfyOnderwerp()]);
   const server = ntfyServer();
+  const serverHost = server ? (URL.canParse(server) ? new URL(server).host : server) : null;
   return (
     <div className="space-y-4">
       <Paneel titel="Garage">
@@ -34,7 +35,7 @@ export default async function InstellingenPagina() {
         <div className="space-y-4">
           <p className="text-xs text-tekst-zacht">
             {server
-              ? `Pushmeldingen gaan via ${server} naar de ntfy-app op je telefoon.`
+              ? `Pushmeldingen gaan via ${serverHost} naar de ntfy-app op je telefoon.`
               : 'NTFY_URL is nog niet ingesteld in .env, dus er worden geen meldingen verstuurd.'}
           </p>
           <ActieFormulier actie={wijzigMeldingenActie} knop="Opslaan" knopVariant="secundair" wisNaSucces={false}>
@@ -42,7 +43,10 @@ export default async function InstellingenPagina() {
               <Invoer name="ntfyOnderwerp" defaultValue={onderwerp ?? ''} maxLength={64} pattern="[A-Za-z0-9_\-]*" />
             </Veld>
           </ActieFormulier>
-          <TestmeldingKnop />
+          <div className="space-y-2">
+            <p className="text-xs text-tekst-flauw">De testmelding gaat naar het opgeslagen onderwerp. Sla een gewijzigd onderwerp eerst op.</p>
+            <TestmeldingKnop />
+          </div>
         </div>
       </Paneel>
       <Paneel titel="Wachtwoord wijzigen" className="max-w-md">

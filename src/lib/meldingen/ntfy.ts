@@ -7,9 +7,14 @@ export class NtfyNietIngesteld extends Fout {
   }
 }
 
+/** Draagt alleen de HTTP-status (of de oorspronkelijke netwerkfout) mee voor de logs, nooit headers of het token. */
 export class NtfyMislukt extends Fout {
-  constructor() {
+  constructor(
+    readonly status: number | null = null,
+    options?: { cause?: unknown },
+  ) {
     super('De melding kon niet verstuurd worden. Controleer NTFY_URL, het token en het onderwerp.');
+    if (options?.cause !== undefined) this.cause = options.cause;
   }
 }
 
@@ -35,8 +40,8 @@ export async function stuurNtfy(onderwerp: string, b: NtfyBericht, haal: typeof 
       body: JSON.stringify({ topic: onderwerp, title: b.titel, message: b.tekst, priority: b.prioriteit, tags: b.tags, click: b.link }),
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
-  } catch {
-    throw new NtfyMislukt();
+  } catch (e) {
+    throw new NtfyMislukt(null, { cause: e instanceof Error ? new Error(`${e.name}: ${e.message}`) : undefined });
   }
-  if (!r.ok) throw new NtfyMislukt();
+  if (!r.ok) throw new NtfyMislukt(r.status);
 }

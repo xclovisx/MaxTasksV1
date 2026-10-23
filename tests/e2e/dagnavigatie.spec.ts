@@ -14,6 +14,7 @@ test('de beheerder bladert op Vandaag naar andere dagen', async ({ page }) => {
   await expect(page.getByRole('heading', { level: 1 })).toContainText('Morgen');
 
   await page.getByRole('link', { name: 'Vorige dag' }).click();
+  await expect(page).toHaveURL(new RegExp(`/vandaag\\?datum=${plusDagen(vandaag, 0)}$`));
   await page.getByRole('link', { name: 'Vorige dag' }).click();
   await expect(page).toHaveURL(new RegExp(`datum=${plusDagen(vandaag, -1)}$`));
   await expect(page.getByRole('heading', { level: 1 })).toContainText('Gisteren');

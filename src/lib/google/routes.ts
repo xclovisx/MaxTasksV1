@@ -76,7 +76,10 @@ export async function berekenRoute(
   if (!route || !isPermutatie(volgorde, n) || !Array.isArray(legs) || legs.length !== n + 1) throw nietBeschikbaar();
   return {
     volgorde,
-    delen: legs.map((l) => ({ duurSec: seconden(l.duration), meters: meters(l.distanceMeters) })),
+    delen: legs.map((l) => {
+      if (typeof l !== 'object' || l === null) throw nietBeschikbaar();
+      return { duurSec: seconden(l.duration), meters: meters(l.distanceMeters) };
+    }),
     totaalSec: seconden(route.duration),
     totaalMeters: meters(route.distanceMeters),
   };
