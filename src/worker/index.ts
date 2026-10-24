@@ -23,8 +23,13 @@ async function nachtrun(): Promise<void> {
 }
 
 async function backupRun(map: string): Promise<void> {
+  const databaseUrl = process.env.DATABASE_URL;
+  if (!databaseUrl) {
+    console.error('[worker] back-up mislukt: DATABASE_URL ontbreekt');
+    return;
+  }
   try {
-    const r = await maakBackup({ map, databaseUrl: process.env.DATABASE_URL ?? '', vandaag: vandaagInAmsterdam() });
+    const r = await maakBackup({ map, databaseUrl, vandaag: vandaagInAmsterdam() });
     console.log(`[worker] back-up gemaakt: ${r.bestand}${r.verwijderd.length ? `, ${r.verwijderd.length} oude verwijderd` : ''}`);
   } catch (e) {
     console.error('[worker] back-up mislukt', e);

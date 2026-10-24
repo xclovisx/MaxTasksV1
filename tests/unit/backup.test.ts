@@ -10,7 +10,7 @@ beforeEach(async () => { map = await mkdtemp(path.join(tmpdir(), 'takenbord-back
 afterEach(async () => { await rm(map, { recursive: true, force: true }); });
 
 /** Nep-pg_dump: schrijft een bestand naar het --file=-argument. */
-const nepDump: Uitvoerder = async (_opdracht, args) => {
+const nepDump: Uitvoerder = async (_opdracht, args, _env) => {
   const doel = args.find((a) => a.startsWith('--file='))!.slice('--file='.length);
   await writeFile(doel, 'dump');
 };
@@ -34,25 +34,41 @@ describe('back-up', () => {
   it('maakt een dump met pg_dump en ruimt oude back-ups op', async () => {
     await writeFile(path.join(map, 'takenbord-2026-10-01.dump'), 'oud');
     await writeFile(path.join(map, 'takenbord-2026-10-20.dump'), 'recent');
-    const aanroepen: [string, string[]][] = [];
+    const aanroepen: [string, string[], Record<string, string>][] = [];
     const r = await maakBackup({
       map, databaseUrl: 'postgres://u:p@db:5432/takenbord', vandaag: '2026-10-24',
-      voerUit: async (opdracht, args) => { aanroepen.push([opdracht, args]); await nepDump(opdracht, args); },
+      voerUit: async (opdracht, args, env) => { aanroepen.push([opdracht, args, env]); await nepDump(opdracht, args, env); },
     });
     expect(r).toEqual({ bestand: path.join(map, 'takenbord-2026-10-24.dump'), verwijderd: ['takenbord-2026-10-01.dump'] });
     expect(aanroepen[0][0]).toBe('pg_dump');
     expect(aanroepen[0][1]).toContain('--format=custom');
-    expect(aanroepen[0][1]).toContain('--dbname=postgres://u:p@db:5432/takenbord');
+    expect(aanroepen[0][1].some((a) => a.startsWith('--dbname'))).toBe(false);
+    expect(aanroepen[0][1].some((a) => a.includes('p@') || a === 'p')).toBe(false);
+    expect(aanroepen[0][2]).toEqual({ PGHOST: 'db', PGPORT: '5432', PGUSER: 'u', PGPASSWORD: 'p', PGDATABASE: 'takenbord' });
     expect((await readdir(map)).sort()).toEqual(['takenbord-2026-10-20.dump', 'takenbord-2026-10-24.dump']);
   });
 
   it('een mislukte dump laat geen half bestand achter en ruimt niets op', async () => {
     await writeFile(path.join(map, 'takenbord-2026-10-01.dump'), 'oud');
-    const kapot: Uitvoerder = async (opdracht, args) => {
-      await nepDump(opdracht, args);
+    const kapot: Uitvoerder = async (opdracht, args, env) => {
+      await nepDump(opdracht, args, env);
       throw new Error('pg_dump stopte met code 1');
     };
-    await expect(maakBackup({ map, databaseUrl: 'postgres://x', vandaag: '2026-10-24', voerUit: kapot })).rejects.toThrow('code 1');
+    await expect(maakBackup({ map, databaseUrl: 'postgres://u:p@db/x', vandaag: '2026-10-24', voerUit: kapot })).rejects.toThrow('code 1');
     expect(await readdir(map)).toEqual(['takenbord-2026-10-01.dump']);
+  });
+
+  it('weigert een ongeldige DATABASE_URL zonder iets uit te voeren', async () => {
+    let aangeroepen = false;
+    const voerUit: Uitvoerder = async () => { aangeroepen = true; };
+    await expect(maakBackup({ map, databaseUrl: 'geen-url', vandaag: '2026-10-24', voerUit })).rejects.toThrow('Ongeldige DATABASE_URL');
+    expect(aangeroepen).toBe(false);
+  });
+
+  it('ruimt achtergebleven .deel-bestanden van een eerdere run op en laat andere bestanden staan', async () => {
+    await writeFile(path.join(map, 'takenbord-2026-10-23.dump.deel'), 'half');
+    await writeFile(path.join(map, 'notities.deel'), 'blijft');
+    await maakBackup({ map, databaseUrl: 'postgres://u:p@db/takenbord', vandaag: '2026-10-24', voerUit: nepDump });
+    expect((await readdir(map)).sort()).toEqual(['notities.deel', 'takenbord-2026-10-24.dump']);
   });
 });
