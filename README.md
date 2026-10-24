@@ -43,17 +43,19 @@ Open de routelink bij voorkeur in de Google Maps-app. In een mobiele browser too
 
 ## Meldingen (ntfy)
 
+Dit gedeelte gaat over lokaal ontwikkelen met het openbare `ntfy.sh`. Voor de server zie "Meldingen op de server (ntfy)" hieronder: daar zet Compose `NTFY_URL` zelf en komt alleen `NTFY_TOKEN` in `.env`.
+
 Bij een taak met "Zo snel mogelijk" of "Nu" van een medewerker krijgt de beheerder een pushmelding via [ntfy](https://ntfy.sh). Taken die de beheerder zelf aanmaakt, geven geen melding.
 
 1. Installeer de ntfy-app op je telefoon.
-2. Zet in `.env` de server en, als je server toegangsbeheer heeft, een token:
+2. Zet in je lokale `.env` de server en, als je server toegangsbeheer heeft, een token:
    ```
    NTFY_URL=https://ntfy.sh
    NTFY_TOKEN=
    ```
 3. Vul in **Beheer → Instellingen → Meldingen** een onderwerp in, abonneer je in de app op hetzelfde onderwerp en klik op **Stuur testmelding**.
 
-Let op: op het openbare `ntfy.sh` kan iedereen die het onderwerp kent meelezen. Kies dus een lang, niet te raden onderwerp. Bij de eigen server (fase 4) komt ntfy met toegangsbeheer en een token.
+Let op: op het openbare `ntfy.sh` kan iedereen die het onderwerp kent meelezen. Kies dus een lang, niet te raden onderwerp. Op de eigen server heeft ntfy toegangsbeheer en een token (zie "Meldingen op de server (ntfy)").
 
 ## Installeren op een server
 
@@ -62,13 +64,17 @@ Voor een Linux-server (bijv. een VPS met Ubuntu 24.04) met een eigen IP-adres. A
 ### 1. Server voorbereiden
 ```bash
 curl -fsSL https://get.docker.com | sh   # Docker Engine + Compose
+sudo usermod -aG docker $USER            # log daarna uit en weer in (of: newgrp docker), anders is elke docker-opdracht "permission denied"
 sudo ufw allow OpenSSH && sudo ufw allow 80 && sudo ufw allow 443 && sudo ufw enable
 git clone <url-van-deze-repository> takenbord && cd takenbord
 ```
+Is de repository privé, dan heeft `git clone` een deploy key of een token nodig.
 
 ### 2. Hostnaam
 - **Eigen domein:** maak een A-record `takenbord.jouwdomein.nl` en een A-record `ntfy.takenbord.jouwdomein.nl` naar het IP van de server.
-- **Nog geen domein:** gebruik `<ip-met-streepjes>.sslip.io`, bijv. `203-0-113-5.sslip.io` (ook `ntfy.203-0-113-5.sslip.io` werkt vanzelf). Later overstappen kan door `DOMEIN` aan te passen en opnieuw te starten.
+- **Nog geen domein:** gebruik `<ip-met-streepjes>.sslip.io`, bijv. `203-0-113-5.sslip.io` (ook `ntfy.203-0-113-5.sslip.io` werkt vanzelf).
+
+**Later overstappen naar een andere naam:** pas `DOMEIN` aan in `.env`, maak A-records voor de nieuwe naam en voor `ntfy.<nieuwe naam>`, en voer `docker compose up -d` uit (niet `restart`: die leest `.env` niet opnieuw). Voeg daarna de nieuwe ntfy-server toe in de ntfy-app. Iedereen moet opnieuw inloggen.
 
 ### 3. Configureren en starten
 ```bash
@@ -79,6 +85,8 @@ docker compose up -d --build
 docker compose run --rm worker npx tsx src/scripts/maak-beheerder.ts "Max" max
 ```
 De eerste `docker compose up -d --build` heeft internettoegang nodig: de build haalt npm-pakketten en Google Fonts op.
+
+`POSTGRES_PASSWORD` werkt alleen bij de eerste start: daarna onthoudt de database het wachtwoord zelf. Verander je het later in `.env`, dan kan de app niet meer verbinden.
 
 Open daarna `https://<DOMEIN>` en log in. Caddy vraagt het HTTPS-certificaat automatisch aan.
 
@@ -101,14 +109,18 @@ docker compose cp worker:/backups/takenbord-2026-10-24.dump .            # naar 
 ```
 Kopieer de back-ups regelmatig naar een andere plek (bijv. met `scp` naar je eigen pc), zodat een kapotte server niet ook je back-ups kost.
 
-**Terugzetten** (overschrijft de huidige gegevens):
+**Terugzetten** (overschrijft de huidige gegevens). Maak eerst een verse back-up, zodat je kunt terug als het misgaat:
 ```bash
+docker compose exec worker npx tsx src/scripts/backup.ts
 docker compose stop app worker
-docker compose exec -T db pg_restore -U takenbord -d takenbord --clean --if-exists < takenbord-2026-10-24.dump
+docker compose exec -T db pg_restore -U takenbord -d takenbord --clean --if-exists --single-transaction < takenbord-2026-10-24.dump
 docker compose start app worker
 ```
 
+**Nieuwe server:** volg stap 1 t/m 3 (`docker compose up -d` draait de migraties en maakt de lege database), kopieer de dump naar de nieuwe server (bijv. met `scp`) en zet hem terug met bovenstaande opdrachten. Doe daarna stap 4 opnieuw: de ntfy-gebruikers en het token staan in het volume `ntfy-data` en zitten dus niet in de back-up.
+
 ### Bijwerken
+Maak eerst een back-up (`docker compose exec worker npx tsx src/scripts/backup.ts`).
 ```bash
 git pull
 docker compose up -d --build     # migraties draaien vanzelf vóór de app start

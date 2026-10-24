@@ -14,6 +14,7 @@ export default async function InstellingenPagina() {
   await vereisBeheerderSessie();
   const [instellingen, locaties, onderwerp] = await Promise.all([haalInstellingen(), lijstLocaties(), haalNtfyOnderwerp()]);
   const server = ntfyServer();
+  const publiek = process.env.NTFY_PUBLIEKE_URL?.trim().replace(/\/+$/, '') || null;
   const serverHost = server ? (URL.canParse(server) ? new URL(server).host : server) : null;
   return (
     <div className="space-y-4">
@@ -35,7 +36,9 @@ export default async function InstellingenPagina() {
         <div className="space-y-4">
           <p className="text-xs text-tekst-zacht">
             {server
-              ? `Pushmeldingen gaan via ${serverHost} naar de ntfy-app op je telefoon.`
+              ? publiek
+                ? `Pushmeldingen gaan via ${publiek} — voeg deze server toe in de ntfy-app.`
+                : `Pushmeldingen gaan via ${serverHost} naar de ntfy-app op je telefoon.`
               : 'NTFY_URL is nog niet ingesteld in .env, dus er worden geen meldingen verstuurd.'}
           </p>
           <ActieFormulier actie={wijzigMeldingenActie} knop="Opslaan" knopVariant="secundair" wisNaSucces={false}>

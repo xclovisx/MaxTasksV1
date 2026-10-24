@@ -43,7 +43,7 @@ Alles draait met Docker Compose op een eigen server (VPS).
 |---|---|
 | `app` | Next.js (App Router, TypeScript): pagina's, API-routes, Server-Sent Events |
 | `worker` | Dezelfde codebase, een Node-proces met geplande taken (doorschuiven, herhalingen, back-up) |
-| `postgres` | PostgreSQL 16 met Row Level Security |
+| `db` | PostgreSQL 16 met Row Level Security |
 | `ntfy` | Zelf gehoste pushmeldingen |
 | `caddy` | Reverse proxy met automatische HTTPS |
 
@@ -56,7 +56,7 @@ Alles draait met Docker Compose op een eigen server (VPS).
 - **Uitrol (fase 4):** `docker-compose.yml` start `db`, een eenmalige `migreer`-dienst (migraties vóór app en worker), `app` (Next.js standalone), `worker` (tsx, met `pg_dump`), `ntfy` en `caddy`. Alleen Caddy (80/443) is van buiten bereikbaar; de app praat intern met `http://ntfy`. Back-ups (custom format) staan in het volume `backups`; een mislukte back-up laat geen half bestand achter.
 - **Hostnaam:** `DOMEIN` in `.env`. Zonder eigen domein werkt een sslip.io-naam (`<ip-met-streepjes>.sslip.io`); ntfy draait op `ntfy.<DOMEIN>` met `deny-all` en één gebruiker met token (bewuste keuze: één account voor de app en de telefoon).
 - **Eerste beheerder:** `docker compose run --rm worker npx tsx src/scripts/maak-beheerder.ts "<naam>" <gebruikersnaam>`.
-- **Configuratie:** via `.env`: database-wachtwoorden, Google-sleutel, ntfy-server en -token (`NTFY_URL`, `NTFY_TOKEN`) en de publieke URL.
+- **Configuratie:** via `.env`: database-wachtwoorden, Google-sleutel, ntfy-server en -token (`NTFY_URL`, `NTFY_TOKEN`) en de publieke URL. Op de server zet Compose zelf `NTFY_URL` (`http://ntfy`) en `NTFY_PUBLIEKE_URL` (`https://ntfy.<DOMEIN>`, getoond in Instellingen zodat je weet welke server je in de ntfy-app toevoegt); in `.env` hoort daar alleen `NTFY_TOKEN`.
 
 ## 4. Rollen en rechten
 

@@ -1,4 +1,5 @@
 import cron from 'node-cron';
+import { db } from '../lib/db/client';
 import { vandaagInAmsterdam } from '../lib/domein/datums';
 import { maakBackup } from './taken/backup';
 import { doorschuiven } from './taken/doorschuiven';
@@ -36,8 +37,23 @@ async function backupRun(map: string): Promise<void> {
   }
 }
 
+/** Wacht tot de database antwoordt (bijv. na een herstart van de server); geeft na alle pogingen false terug. */
+async function wachtOpDatabase(pogingen = 30, pauzeMs = 2000): Promise<boolean> {
+  for (let i = 0; i < pogingen; i++) {
+    try {
+      await db()`select 1`;
+      return true;
+    } catch {
+      if (i === 0) console.log('[worker] wachten op de database…');
+      await new Promise((klaar) => setTimeout(klaar, pauzeMs));
+    }
+  }
+  return false;
+}
+
 async function main(): Promise<void> {
   console.log('[worker] gestart; inhalen…');
+  if (!(await wachtOpDatabase())) console.error('[worker] database niet bereikbaar');
   await nachtrun();
   cron.schedule('5 0 * * *', () => void nachtrun(), { timezone: 'Europe/Amsterdam', noOverlap: true });
   const backupMap = process.env.BACKUP_MAP;
