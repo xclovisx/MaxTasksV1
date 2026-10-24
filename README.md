@@ -61,6 +61,23 @@ Let op: op het openbare `ntfy.sh` kan iedereen die het onderwerp kent meelezen. 
 
 Voor een Linux-server (bijv. een VPS met Ubuntu 24.04) met een eigen IP-adres. Alles draait in Docker; alleen poort 80 en 443 staan open.
 
+### Snel: met het installatiescript (aanbevolen)
+
+1. Laat je domein én `ntfy.<domein>` met een A-record naar het IP-adres van de server wijzen.
+2. Log via SSH in op de server (als gebruiker met sudo, of als root) en draai:
+   ```bash
+   curl -fsSL https://raw.githubusercontent.com/xclovisx/MaxTasksV1/main/install.sh | bash
+   ```
+3. Beantwoord de vragen (domeinnaam, je naam, gebruikersnaam en wachtwoord, optioneel de Google-sleutel).
+
+Het script installeert Docker, zet de firewall (alleen SSH, 80 en 443), haalt de code op in `/opt/takenbord`, schrijft `.env`, start alles, maakt je beheerdersaccount aan en regelt HTTPS, ntfy en de nachtelijke back-ups. Aan het eind zie je het adres van het takenbord en de ntfy-gegevens voor de app. De firewall zet het script alleen aan als het de SSH-poort kan bepalen; lukt dat niet, dan staat dat in de samenvatting. Draai het script ook altijd als dezelfde gebruiker: het weigert als `/opt/takenbord` van een andere gebruiker is.
+
+**Bijwerken:** draai dezelfde regel opnieuw (of `bash /opt/takenbord/install.sh`). Het script maakt eerst een back-up en haalt dan de nieuwste versie op. Wordt een installatie halverwege afgebroken, dan gaat het script bij de volgende keer verder waar het gebleven was.
+
+### Handmatig (naslag)
+
+De stappen hieronder doet het script voor je; ze staan hier voor als je iets zelf wilt doen of wilt begrijpen.
+
 ### 1. Server voorbereiden
 ```bash
 curl -fsSL https://get.docker.com | sh   # Docker Engine + Compose
@@ -120,7 +137,7 @@ docker compose start app worker
 **Nieuwe server:** volg stap 1 t/m 3 (`docker compose up -d` draait de migraties en maakt de lege database), kopieer de dump naar de nieuwe server (bijv. met `scp`) en zet hem terug met bovenstaande opdrachten. Doe daarna stap 4 opnieuw: de ntfy-gebruikers en het token staan in het volume `ntfy-data` en zitten dus niet in de back-up.
 
 ### Bijwerken
-Maak eerst een back-up (`docker compose exec worker npx tsx src/scripts/backup.ts`).
+Met het script: `bash /opt/takenbord/install.sh`. Handmatig: maak eerst een back-up (`docker compose exec worker npx tsx src/scripts/backup.ts`).
 ```bash
 git pull
 docker compose up -d --build     # migraties draaien vanzelf vóór de app start
@@ -136,6 +153,7 @@ npm test                  # unit-tests
 npm run test:integratie   # integratietests (start zelf een PostgreSQL-container)
 npm run test:e2e          # end-to-end; stop eerst een lopende `npm run dev`
 npm run typecheck
+docker run --rm -v "$PWD":/repo -w /repo ubuntu:24.04 bash tests/install/test-install.sh   # hulpfuncties van install.sh
 ```
 
 De e2e-tests gebruiken de database `takenbord_e2e` en een eigen dev-server op poort 3100. Bestaat de dev-database al
