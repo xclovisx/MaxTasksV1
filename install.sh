@@ -113,6 +113,35 @@ ssh_poorten() { # $1 = uitvoer van sshd -T, $2 = SSH_CONNECTION, $3 = uitvoer va
 
 heeft_oude_data() { "${DOCKER[@]}" volume inspect takenbord_db-data >/dev/null 2>&1; }
 
+systeem_probleem() { # $1 = ID, $2 = VERSION_ID (uit /etc/os-release), $3 = uname -m; leeg als Docker hier draait
+  local versie
+  case "$3" in
+    x86_64 | aarch64) ;;
+    *)
+      echo "Een 64-bit systeem (x86_64 of aarch64) is nodig; dit is $3."
+      return
+      ;;
+  esac
+  case "$1" in
+    ubuntu)
+      versie=$((10#${2%%.*} * 100 + 10#${2#*.}))
+      if ((versie < 2204)); then
+        echo "Ubuntu $2 is te oud: Docker ondersteunt alleen Ubuntu 22.04 of nieuwer. Werk de server bij (sudo do-release-upgrade) of installeer Ubuntu 24.04 LTS en draai dit script opnieuw."
+      fi
+      ;;
+    debian)
+      if [[ ! "$2" =~ ^[0-9]+$ ]]; then
+        echo "Een onbekende Debian-versie (testing/sid?); gebruik Debian 12 of nieuwer."
+      elif ((10#$2 < 12)); then
+        echo "Debian $2 is te oud: Docker ondersteunt alleen Debian 12 of nieuwer. Werk de server bij en draai dit script opnieuw."
+      fi
+      ;;
+    *)
+      echo "Alleen Ubuntu (22.04 of nieuwer) en Debian (12 of nieuwer) worden ondersteund; dit is '$1'."
+      ;;
+  esac
+}
+
 # ---------- invoer en docker ----------
 vraag() { # $1 = variabele, $2 = vraag
   local antwoord
@@ -166,6 +195,13 @@ controleer_systeem() {
   stap "Systeem controleren"
   [[ "$(uname -s)" == Linux ]] || stop_met_fout "Dit script werkt alleen op Linux."
   command -v apt-get >/dev/null || stop_met_fout "Alleen Ubuntu en Debian (apt-get) worden ondersteund."
+  local id="" versie="" probleem
+  if [[ -r /etc/os-release ]]; then
+    id="$(awk -F= '$1 == "ID" { gsub(/"/, "", $2); print $2 }' /etc/os-release)"
+    versie="$(awk -F= '$1 == "VERSION_ID" { gsub(/"/, "", $2); print $2 }' /etc/os-release)"
+  fi
+  probleem="$(systeem_probleem "$id" "$versie" "$(uname -m)")"
+  [[ -z "$probleem" ]] || stop_met_fout "$probleem"
   { : </dev/tty; } 2>/dev/null || stop_met_fout "Geen terminal gevonden; start het script vanuit een SSH-sessie."
   if [[ $EUID -ne 0 ]]; then
     command -v sudo >/dev/null || stop_met_fout "sudo is nodig (of draai het script als root)."
@@ -173,13 +209,13 @@ controleer_systeem() {
     # shellcheck disable=SC2024 # bewust: sudo moet het wachtwoord van de terminal lezen, ook bij curl | bash
     sudo -v </dev/tty
   fi
-  gelukt "Linux met apt-get"
+  gelukt "$id $versie ($(uname -m))"
 }
 
 vraag_instellingen() {
   stap "Gegevens"
   while true; do
-    vraag DOMEIN "Domeinnaam van het takenbord (bijv. takenbord.jouwdomein.nl)"
+    vraag DOMEIN "Domeinnaam van het takenbord (bijv. takenbord.jouwdomein.nl; nog geen domein? gebruik <ip-met-streepjes>.sslip.io)"
     DOMEIN="${DOMEIN,,}"
     is_geldig_domein "$DOMEIN" && break
     waarschuw "Dat is geen geldige domeinnaam."

@@ -156,6 +156,17 @@ uitvoer="$( (MAP="$tmp/map-wacht" wacht_op_site) 2>&1 )"
 controleer "wacht_op_site: foutmelding als de app niet antwoordt" heeft_patroon "$uitvoer" 'antwoordt niet'
 unset -f sleep curl dc
 
+controleer "systeem: Ubuntu 24.04 op x86_64" is_gelijk "$(systeem_probleem ubuntu 24.04 x86_64)" ""
+controleer "systeem: Ubuntu 22.04 op aarch64" is_gelijk "$(systeem_probleem ubuntu 22.04 aarch64)" ""
+controleer "systeem: Ubuntu 25.10" is_gelijk "$(systeem_probleem ubuntu 25.10 x86_64)" ""
+controleer "systeem: Debian 12" is_gelijk "$(systeem_probleem debian 12 x86_64)" ""
+controleer "systeem: Ubuntu 20.04 te oud" heeft_patroon "$(systeem_probleem ubuntu 20.04 x86_64)" 'Ubuntu 20\.04 is te oud.*22\.04'
+controleer "systeem: Ubuntu 21.10 te oud" heeft_patroon "$(systeem_probleem ubuntu 21.10 x86_64)" 'te oud'
+controleer "systeem: Debian 11 te oud" heeft_patroon "$(systeem_probleem debian 11 x86_64)" 'Debian 11 is te oud.*12'
+controleer "systeem: Debian zonder versie (testing)" heeft_patroon "$(systeem_probleem debian "" x86_64)" 'onbekende Debian-versie'
+controleer "systeem: andere distributie" heeft_patroon "$(systeem_probleem linuxmint 21.3 x86_64)" "Alleen Ubuntu .* en Debian .*'linuxmint'"
+controleer "systeem: 32-bit ARM" heeft_patroon "$(systeem_probleem ubuntu 24.04 armv7l)" '64-bit'
+
 rm -rf "$tmp"
 echo
 if [[ $fouten -eq 0 ]]; then
