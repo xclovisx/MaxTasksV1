@@ -15,6 +15,7 @@ GOOGLE=""
 NAAM=""
 GEBRUIKERSNAAM=""
 WACHTWOORD=""
+FIREWALL_UIT=0
 
 # ---------- uitvoer ----------
 stap() {
@@ -241,6 +242,7 @@ zet_firewall() {
   "${SUDO[@]}" ufw allow 443/tcp >/dev/null
   if [[ $zeker -eq 0 ]]; then
     # Zonder bekende SSH-poort de firewall niet aanzetten: dan sluit je jezelf mogelijk buiten.
+    FIREWALL_UIT=1
     waarschuw "Kon de SSH-poort niet bepalen. Ik heb 22, 80 en 443 opengezet maar de firewall NIET aangezet. Controleer op welke poort SSH draait (bijv. met: sudo ss -tlnp | grep sshd) en voer dan uit: sudo ufw allow <poort>/tcp && sudo ufw enable"
     return
   fi
@@ -412,6 +414,10 @@ samenvatting() { # $1 = modus; bij bijwerken een korte samenvatting zonder wacht
   fi
   info "Back-ups:     elke nacht om 03:00 (bekijken: docker compose -f $MAP/docker-compose.yml exec worker ls /backups)"
   info "Bijwerken:    draai dit script opnieuw: bash $MAP/install.sh"
+  if [[ $FIREWALL_UIT -eq 1 ]]; then
+    printf '\n'
+    waarschuw "LET OP: de firewall is niet door dit script aangezet, omdat de SSH-poort onbekend was. Als ufw nog niet actief was, staat de server dus open. Controleer je SSH-poort en voer uit: sudo ufw allow <poort>/tcp && sudo ufw enable"
+  fi
 }
 
 hoofd() {
@@ -421,7 +427,10 @@ hoofd() {
   if ! eigenaar_klopt "$MAP" "$EUID"; then
     local eigenaar
     eigenaar="$(stat -c %U "$MAP")"
-    stop_met_fout "De map $MAP is van gebruiker $eigenaar. Draai dit script als die gebruiker: sudo -u $eigenaar bash $MAP/install.sh"
+    if [[ -f "$MAP/install.sh" ]]; then
+      stop_met_fout "De map $MAP is van gebruiker $eigenaar. Draai dit script als die gebruiker: sudo -u $eigenaar bash $MAP/install.sh"
+    fi
+    stop_met_fout "De map $MAP is van gebruiker $eigenaar. Maak jezelf eigenaar met: sudo chown $(id -un) $MAP en start daarna de installatie opnieuw met de curl-regel (curl -fsSL https://raw.githubusercontent.com/xclovisx/MaxTasksV1/main/install.sh | bash)."
   fi
   local modus
   modus="$(bepaal_modus "$MAP")"
