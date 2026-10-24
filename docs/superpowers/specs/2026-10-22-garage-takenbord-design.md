@@ -53,8 +53,10 @@ Alles draait met Docker Compose op een eigen server (VPS).
 - **Tijdzone:** alle datumlogica in `Europe/Amsterdam`. Taakdatums worden opgeslagen als `date` en tijden als `time`, dus zonder tijdzone.
 - **Externe diensten:** Google Places API (New) voor het aanvullen van adressen en Google Routes API (fase 3) voor de optimale volgorde. Beide worden alleen vanaf de server aangeroepen, met één sleutel (`GOOGLE_MAPS_API_KEY`, beperkt tot de server-IP en deze API's), zodat er geen sleutel in de browser staat. In Google Cloud wordt een budgetwaarschuwing ingesteld.
 - **Back-up:** de `worker` draait elke nacht om 03:00 `pg_dump` naar een volume en bewaart 14 dagen.
+- **Uitrol (fase 4):** `docker-compose.yml` start `db`, een eenmalige `migreer`-dienst (migraties vóór app en worker), `app` (Next.js standalone), `worker` (tsx, met `pg_dump`), `ntfy` en `caddy`. Alleen Caddy (80/443) is van buiten bereikbaar; de app praat intern met `http://ntfy`. Back-ups (custom format) staan in het volume `backups`; een mislukte back-up laat geen half bestand achter.
+- **Hostnaam:** `DOMEIN` in `.env`. Zonder eigen domein werkt een sslip.io-naam (`<ip-met-streepjes>.sslip.io`); ntfy draait op `ntfy.<DOMEIN>` met `deny-all` en één gebruiker met token (bewuste keuze: één account voor de app en de telefoon).
+- **Eerste beheerder:** `docker compose run --rm worker npx tsx src/scripts/maak-beheerder.ts "<naam>" <gebruikersnaam>`.
 - **Configuratie:** via `.env`: database-wachtwoorden, Google-sleutel, ntfy-server en -token (`NTFY_URL`, `NTFY_TOKEN`) en de publieke URL.
-- **Eerste beheerder:** wordt aangemaakt met het CLI-commando `npm run maak-beheerder`, uitgevoerd in de `app`-container.
 
 ## 4. Rollen en rechten
 

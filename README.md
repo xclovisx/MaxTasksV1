@@ -55,6 +55,68 @@ Bij een taak met "Zo snel mogelijk" of "Nu" van een medewerker krijgt de beheerd
 
 Let op: op het openbare `ntfy.sh` kan iedereen die het onderwerp kent meelezen. Kies dus een lang, niet te raden onderwerp. Bij de eigen server (fase 4) komt ntfy met toegangsbeheer en een token.
 
+## Installeren op een server
+
+Voor een Linux-server (bijv. een VPS met Ubuntu 24.04) met een eigen IP-adres. Alles draait in Docker; alleen poort 80 en 443 staan open.
+
+### 1. Server voorbereiden
+```bash
+curl -fsSL https://get.docker.com | sh   # Docker Engine + Compose
+sudo ufw allow OpenSSH && sudo ufw allow 80 && sudo ufw allow 443 && sudo ufw enable
+git clone <url-van-deze-repository> takenbord && cd takenbord
+```
+
+### 2. Hostnaam
+- **Eigen domein:** maak een A-record `takenbord.jouwdomein.nl` en een A-record `ntfy.takenbord.jouwdomein.nl` naar het IP van de server.
+- **Nog geen domein:** gebruik `<ip-met-streepjes>.sslip.io`, bijv. `203-0-113-5.sslip.io` (ook `ntfy.203-0-113-5.sslip.io` werkt vanzelf). Later overstappen kan door `DOMEIN` aan te passen en opnieuw te starten.
+
+### 3. Configureren en starten
+```bash
+cp .env.productie.example .env
+nano .env            # DOMEIN en POSTGRES_PASSWORD invullen (wachtwoord: openssl rand -hex 24)
+                     # POSTGRES_PASSWORD mag alleen letters en cijfers bevatten: het wordt in een databaseadres gebruikt.
+docker compose up -d --build
+docker compose run --rm worker npx tsx src/scripts/maak-beheerder.ts "Max" max
+```
+De eerste `docker compose up -d --build` heeft internettoegang nodig: de build haalt npm-pakketten en Google Fonts op.
+
+Open daarna `https://<DOMEIN>` en log in. Caddy vraagt het HTTPS-certificaat automatisch aan.
+
+### 4. Meldingen op de server (ntfy)
+```bash
+docker compose exec ntfy ntfy user add --role=admin max      # kies een wachtwoord
+docker compose exec ntfy ntfy token add max                  # kopieer het token
+```
+Zet het token als `NTFY_TOKEN=` in `.env` en voer `docker compose up -d` uit. Voeg in de ntfy-app de server `https://ntfy.<DOMEIN>` toe, log in als `max` en abonneer je op het onderwerp dat je in **Beheer → Instellingen → Meldingen** invult. Klik daar op **Stuur testmelding**.
+
+### 5. Google (optioneel)
+Zet `GOOGLE_MAPS_API_KEY=` in `.env` (zie "Google (adressen zoeken en route plannen)"), beperk de sleutel tot het IP van de server en voer `docker compose up -d` uit.
+
+### Back-ups
+Elke nacht om 03:00 maakt de worker een back-up in het volume `backups`; de laatste 14 dagen blijven bewaard.
+```bash
+docker compose exec worker npx tsx src/scripts/backup.ts                 # nu een back-up maken
+docker compose exec worker ls /backups                                   # overzicht
+docker compose cp worker:/backups/takenbord-2026-10-24.dump .            # naar de server kopiëren
+```
+Kopieer de back-ups regelmatig naar een andere plek (bijv. met `scp` naar je eigen pc), zodat een kapotte server niet ook je back-ups kost.
+
+**Terugzetten** (overschrijft de huidige gegevens):
+```bash
+docker compose stop app worker
+docker compose exec -T db pg_restore -U takenbord -d takenbord --clean --if-exists < takenbord-2026-10-24.dump
+docker compose start app worker
+```
+
+### Bijwerken
+```bash
+git pull
+docker compose up -d --build     # migraties draaien vanzelf vóór de app start
+```
+
+### Lokaal controleren
+`bash scripts/rooktest-productie.sh` bouwt de hele stack op je eigen pc (https://localhost:8443), controleert app, migraties, ntfy en back-up, en ruimt alles weer op.
+
 ## Testen
 
 ```bash
