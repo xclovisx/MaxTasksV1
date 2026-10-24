@@ -1,0 +1,89 @@
+name: takenbord
+
+x-database-url: &database-url postgres://takenbord:${POSTGRES_PASSWORD:?Zet POSTGRES_PASSWORD in .env}@db:5432/takenbord
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: takenbord
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Zet POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: takenbord
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U takenbord -d takenbord"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  migreer:
+    build: { context: ., target: worker }
+    image: takenbord-worker
+    command: ["npx", "tsx", "src/scripts/migreer.ts"]
+    environment:
+      DATABASE_URL: *database-url
+    depends_on:
+      db: { condition: service_healthy }
+    restart: "no"
+
+  app:
+    build: { context: ., target: app }
+    image: takenbord-app
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: *database-url
+      APP_URL: https://${DOMEIN:?Zet DOMEIN in .env}
+      GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY:-}
+      NTFY_URL: http://ntfy
+      NTFY_TOKEN: ${NTFY_TOKEN:-}
+    depends_on:
+      migreer: { condition: service_completed_successfully }
+
+  worker:
+    build: { context: ., target: worker }
+    image: takenbord-worker
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: *database-url
+      BACKUP_MAP: /backups
+    volumes:
+      - backups:/backups
+    depends_on:
+      migreer: { condition: service_completed_successfully }
+
+  ntfy:
+    image: binwiederhier/ntfy:v2.11.0
+    command: serve
+    restart: unless-stopped
+    environment:
+      NTFY_BASE_URL: https://ntfy.${DOMEIN:?Zet DOMEIN in .env}
+      NTFY_BEHIND_PROXY: "true"
+      NTFY_AUTH_FILE: /var/lib/ntfy/auth.db
+      NTFY_AUTH_DEFAULT_ACCESS: deny-all
+      NTFY_CACHE_FILE: /var/lib/ntfy/cache.db
+      NTFY_UPSTREAM_BASE_URL: https://ntfy.sh
+    volumes:
+      - ntfy-data:/var/lib/ntfy
+
+  caddy:
+    image: caddy:2.8.4-alpine
+    restart: unless-stopped
+    ports:
+      - "${HTTP_POORT:-80}:80"
+      - "${HTTPS_POORT:-443}:443"
+    environment:
+      DOMEIN: ${DOMEIN:?Zet DOMEIN in .env}
+    volumes:
+      - ./docker/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on: [app, ntfy]
+
+volumes:
+  db-data:
+  backups:
+  ntfy-data:
+  caddy-data:
+  caddy-config:

@@ -1,0 +1,7 @@
+{$DOMEIN} {
+	reverse_proxy app:3000
+}
+
+ntfy.{$DOMEIN} {
+	reverse_proxy ntfy:80
+}
