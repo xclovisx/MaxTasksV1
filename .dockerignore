@@ -1,0 +1,14 @@
+node_modules
+.next
+.git
+.env
+.env.*
+!.env.example
+!.env.productie.example
+.superpowers
+.impeccable
+.claude
+test-results
+playwright-report
+backups
+*.tsbuildinfo
