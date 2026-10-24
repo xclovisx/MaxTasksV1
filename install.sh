@@ -95,19 +95,15 @@ standaard_map() { # $1 = pad van dit script (leeg bij curl | bash)
   fi
 }
 
-eigenaar_klopt() { # $1 = map, $2 = uid van de huidige gebruiker; root en een nog niet bestaande map zijn altijd goed
-  [[ ! -d "$1" || "$2" -eq 0 || "$(stat -c %u "$1")" -eq "$2" ]]
+eigenaar_klopt() { # $1 = map, $2 = uid van de huidige gebruiker; goed als de map nog niet bestaat of van die uid is (ook voor root)
+  [[ ! -d "$1" || "$(stat -c %u "$1")" -eq "$2" ]]
 }
 
-ssh_poorten() { # $1 = uitvoer van sshd -T, $2 = SSH_CONNECTION, $3 = uitvoer van ss -tlnpH; geeft unieke poorten
-  local sshd_poorten
-  sshd_poorten="$(awk '$1 == "port" { print $2 }' <<<"$1")"
+ssh_poorten() { # $1 = uitvoer van sshd -T, $2 = SSH_CONNECTION, $3 = uitvoer van ss -tlnpH; geeft de unieke poorten van alle bronnen samen
   {
-    if [[ -n "$sshd_poorten" ]]; then
-      echo "$sshd_poorten"
-    else
-      awk 'index($0, "\"sshd\"") { n = split($4, d, ":"); print d[n] }' <<<"$3"
-    fi
+    awk '$1 == "port" { print $2 }' <<<"$1"
+    awk '$1 == "listenaddress" { n = split($2, d, ":"); print d[n] }' <<<"$1"
+    awk 'index($0, "\"sshd\"") { n = split($4, d, ":"); print d[n] }' <<<"$3"
     if [[ -n "$2" ]]; then
       awk '{ print $4 }' <<<"$2"
     fi
@@ -232,8 +228,9 @@ zet_firewall() {
   uit_sshd="$("${SUDO[@]}" sshd -T 2>/dev/null || true)"
   uit_ss="$("${SUDO[@]}" ss -tlnpH 2>/dev/null || true)"
   poorten="$(ssh_poorten "$uit_sshd" "${SSH_CONNECTION:-}" "$uit_ss")"
+  local zeker=1
   if [[ -z "$poorten" ]]; then
-    waarschuw "Kon de SSH-poort niet bepalen; ik ga uit van poort 22. Draait SSH op een andere poort, open die dan zelf met: sudo ufw allow <poort>/tcp"
+    zeker=0
     poorten=22
   fi
   for poort in $poorten; do
@@ -242,6 +239,11 @@ zet_firewall() {
   done
   "${SUDO[@]}" ufw allow 80/tcp >/dev/null
   "${SUDO[@]}" ufw allow 443/tcp >/dev/null
+  if [[ $zeker -eq 0 ]]; then
+    # Zonder bekende SSH-poort de firewall niet aanzetten: dan sluit je jezelf mogelijk buiten.
+    waarschuw "Kon de SSH-poort niet bepalen. Ik heb 22, 80 en 443 opengezet maar de firewall NIET aangezet. Controleer op welke poort SSH draait (bijv. met: sudo ss -tlnp | grep sshd) en voer dan uit: sudo ufw allow <poort>/tcp && sudo ufw enable"
+    return
+  fi
   "${SUDO[@]}" ufw --force enable >/dev/null
   gelukt "SSH, 80 en 443 open; de rest dicht"
 }
@@ -394,7 +396,7 @@ werk_bij() {
 controleer_oude_data() {
   stap "Controleren op een bestaande database"
   if heeft_oude_data; then
-    stop_met_fout "Er is al een database van een eerdere installatie (docker-volume takenbord_db-data). Die bewaart het oude wachtwoord, dat niet bij de nieuwe .env past. Kies: herstel je oude .env in $MAP, of verwijder de oude database met 'docker volume rm takenbord_db-data' (alle gegevens daarin gaan verloren) en draai het script opnieuw."
+    stop_met_fout "Er is al een database van een eerdere installatie (docker-volume takenbord_db-data). Die bewaart het oude wachtwoord, dat niet bij de nieuwe .env past. Kies: herstel je oude .env in $MAP, of stop eerst de oude containers met 'sudo docker compose -p takenbord down' en verwijder dan de oude database met 'sudo docker volume rm takenbord_db-data' (alle gegevens daarin gaan verloren) en draai het script opnieuw."
   fi
   gelukt "Geen oude database"
 }
@@ -408,7 +410,7 @@ samenvatting() { # $1 = modus; bij bijwerken een korte samenvatting zonder wacht
     info "ntfy-server:  https://ntfy.$domein (gebruiker $(lees_env_waarde "$env" NTFY_GEBRUIKER), wachtwoord $(lees_env_waarde "$env" NTFY_WACHTWOORD))"
     info "              Voeg deze server toe in de ntfy-app en kies het onderwerp in Beheer → Instellingen → Meldingen."
   fi
-  info "Back-ups:    elke nacht om 03:00 (bekijken: docker compose -f $MAP/docker-compose.yml exec worker ls /backups)"
+  info "Back-ups:     elke nacht om 03:00 (bekijken: docker compose -f $MAP/docker-compose.yml exec worker ls /backups)"
   info "Bijwerken:    draai dit script opnieuw: bash $MAP/install.sh"
 }
 

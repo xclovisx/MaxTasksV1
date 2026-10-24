@@ -77,7 +77,10 @@ controleer "ssh_poorten: poort uit SSH_CONNECTION" is_gelijk "$(ssh_poorten "" "
 controleer "ssh_poorten: dubbele poorten één keer" is_gelijk "$(ssh_poorten "port 22" "1.2.3.4 5555 5.6.7.8 22" "")" 22
 ss_uitvoer=$'LISTEN 0 128 0.0.0.0:2200 0.0.0.0:* users:(("sshd",pid=1,fd=3))\nLISTEN 0 4096 127.0.0.1:5432 0.0.0.0:* users:(("postgres",pid=2,fd=4))\nLISTEN 0 128 [::]:2200 [::]:* users:(("sshd",pid=1,fd=4))'
 controleer "ssh_poorten: terugval op ss voor sshd" is_gelijk "$(ssh_poorten "" "" "$ss_uitvoer")" 2200
-controleer "ssh_poorten: ss wordt genegeerd als sshd -T poorten geeft" is_gelijk "$(ssh_poorten "port 22" "" "$ss_uitvoer")" 22
+controleer "ssh_poorten: ss vult sshd -T aan" is_gelijk "$(ssh_poorten "port 22" "" "$ss_uitvoer")" $'22\n2200'
+controleer "ssh_poorten: listenaddress met poort" is_gelijk "$(ssh_poorten $'port 22\nlistenaddress 0.0.0.0:2222' "" "")" $'22\n2222'
+controleer "ssh_poorten: listenaddress IPv6" is_gelijk "$(ssh_poorten "listenaddress [::]:2223" "" "")" 2223
+controleer "ssh_poorten: alles samen, uniek en gesorteerd" is_gelijk "$(ssh_poorten $'port 22\nlistenaddress [::]:2222' "1.1.1.1 5000 2.2.2.2 22" "$ss_uitvoer")" $'22\n2200\n2222'
 controleer "ssh_poorten: niets bekend geeft niets" is_gelijk "$(ssh_poorten "" "" "")" ""
 
 mkdir -p "$tmp/map-env-dir/.env"
@@ -86,7 +89,12 @@ mkdir -p "$tmp/map-eigen"
 eigen_uid="$(stat -c %u "$tmp/map-eigen")"
 controleer "eigenaar klopt" eigenaar_klopt "$tmp/map-eigen" "$eigen_uid"
 controleer "eigenaar klopt niet" weiger eigenaar_klopt "$tmp/map-eigen" "$((eigen_uid + 1000))"
-controleer "eigenaar: root mag altijd" eigenaar_klopt "$tmp/map-eigen" 0
+controleer "eigenaar: root op een map van root" eigenaar_klopt "$tmp/map-eigen" 0
+mkdir -p "$tmp/map-van-gebruiker"
+chown 1000 "$tmp/map-van-gebruiker"
+controleer "eigenaar: root in andermans map wordt geweigerd" weiger eigenaar_klopt "$tmp/map-van-gebruiker" 0
+controleer "eigenaar: de gebruiker zelf in zijn map" eigenaar_klopt "$tmp/map-van-gebruiker" 1000
+controleer "eigenaar: root, map bestaat nog niet" eigenaar_klopt "$tmp/bestaat-niet" 0
 controleer "eigenaar: map bestaat nog niet" eigenaar_klopt "$tmp/bestaat-niet" 12345
 
 fake_docker() { [[ "$1 $2 $3" == "volume inspect takenbord_db-data" && "${FAKE_VOLUME:-}" == 1 ]]; }
