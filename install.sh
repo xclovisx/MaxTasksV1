@@ -50,23 +50,33 @@ lees_env_waarde() { # $1 = bestand, $2 = sleutel
 
 zet_env_waarde() { # $1 = bestand, $2 = sleutel, $3 = waarde (vervangt of voegt toe; rechten 600)
   local tmp
-  tmp="$(mktemp "$1.XXXXXX")"
+  tmp="$(mktemp "$1.XXXXXX")" || return 1
   if [[ -f "$1" ]]; then
     W="$3" awk -v s="$2" '
       BEGIN { w = ENVIRON["W"]; gezet = 0 }
       index($0, s "=") == 1 { print s "=" w; gezet = 1; next }
       { print }
-      END { if (!gezet) print s "=" w }' "$1" >"$tmp"
+      END { if (!gezet) print s "=" w }' "$1" >"$tmp" || {
+      rm -f "$tmp"
+      return 1
+    }
   else
-    printf '%s=%s\n' "$2" "$3" >"$tmp"
+    printf '%s=%s\n' "$2" "$3" >"$tmp" || {
+      rm -f "$tmp"
+      return 1
+    }
   fi
-  chmod 600 "$tmp"
-  mv "$tmp" "$1"
+  if ! chmod 600 "$tmp" || ! mv "$tmp" "$1"; then
+    rm -f "$tmp"
+    return 1
+  fi
 }
 
-bepaal_modus() { # $1 = map
+bepaal_modus() { # $1 = map; geeft nieuw, hervatten, bijwerken of onleesbaar
   local env="$1/.env"
-  if [[ ! -f "$env" ]]; then
+  if [[ -e "$env" || -L "$env" ]] && { [[ ! -f "$env" ]] || [[ ! -r "$env" ]]; }; then
+    echo onleesbaar
+  elif [[ ! -f "$env" ]]; then
     echo nieuw
   elif [[ "$(lees_env_waarde "$env" INSTALLATIE_KLAAR)" == 1 ]]; then
     echo bijwerken
@@ -78,12 +88,33 @@ bepaal_modus() { # $1 = map
 standaard_map() { # $1 = pad van dit script (leeg bij curl | bash)
   if [[ -n "${TAKENBORD_MAP:-}" ]]; then
     echo "$TAKENBORD_MAP"
-  elif [[ -n "$1" && -f "$(dirname "$1")/docker-compose.yml" ]]; then
+  elif [[ -n "$1" && -f "$1" && -f "$(dirname "$1")/docker-compose.yml" ]]; then
     (cd "$(dirname "$1")" && pwd)
   else
     echo /opt/takenbord
   fi
 }
+
+eigenaar_klopt() { # $1 = map, $2 = uid van de huidige gebruiker; root en een nog niet bestaande map zijn altijd goed
+  [[ ! -d "$1" || "$2" -eq 0 || "$(stat -c %u "$1")" -eq "$2" ]]
+}
+
+ssh_poorten() { # $1 = uitvoer van sshd -T, $2 = SSH_CONNECTION, $3 = uitvoer van ss -tlnpH; geeft unieke poorten
+  local sshd_poorten
+  sshd_poorten="$(awk '$1 == "port" { print $2 }' <<<"$1")"
+  {
+    if [[ -n "$sshd_poorten" ]]; then
+      echo "$sshd_poorten"
+    else
+      awk 'index($0, "\"sshd\"") { n = split($4, d, ":"); print d[n] }' <<<"$3"
+    fi
+    if [[ -n "$2" ]]; then
+      awk '{ print $4 }' <<<"$2"
+    fi
+  } | grep -E '^[0-9]+$' | sort -nu || true
+}
+
+heeft_oude_data() { "${DOCKER[@]}" volume inspect takenbord_db-data >/dev/null 2>&1; }
 
 # ---------- invoer en docker ----------
 vraag() { # $1 = variabele, $2 = vraag
@@ -95,9 +126,9 @@ vraag() { # $1 = variabele, $2 = vraag
 vraag_wachtwoord() { # $1 = variabele
   local een twee
   while true; do
-    read -r -s -p "  Wachtwoord (minimaal 8 tekens): " een </dev/tty
+    IFS= read -r -s -p "  Wachtwoord (minimaal 8 tekens): " een </dev/tty
     echo
-    read -r -s -p "  Herhaal het wachtwoord: " twee </dev/tty
+    IFS= read -r -s -p "  Herhaal het wachtwoord: " twee </dev/tty
     echo
     if [[ ${#een} -lt 8 ]]; then
       waarschuw "Te kort."
@@ -122,6 +153,8 @@ dc() { "${DOCKER[@]}" compose --project-directory "$MAP" -f "$MAP/docker-compose
 
 bij_fout() {
   local code=$?
+  # In een subshell (bijv. $(...)) verschijnt de fout ook in de hoofdshell; daar alleen de code doorgeven.
+  if [[ $BASH_SUBSHELL -gt 0 ]]; then exit "$code"; fi
   printf '\n\033[31m✗ Stap "%s" mislukt (regel %s, code %s).\033[0m\n' "$HUIDIGE_STAP" "$1" "$code" >&2
   if [[ -n "$MAP" && -f "$MAP/.env" ]] && command -v docker >/dev/null 2>&1; then
     info "Laatste logregels:" >&2
@@ -136,7 +169,7 @@ controleer_systeem() {
   stap "Systeem controleren"
   [[ "$(uname -s)" == Linux ]] || stop_met_fout "Dit script werkt alleen op Linux."
   command -v apt-get >/dev/null || stop_met_fout "Alleen Ubuntu en Debian (apt-get) worden ondersteund."
-  [[ -r /dev/tty ]] || stop_met_fout "Geen terminal gevonden; start het script vanuit een SSH-sessie."
+  { : </dev/tty; } 2>/dev/null || stop_met_fout "Geen terminal gevonden; start het script vanuit een SSH-sessie."
   if [[ $EUID -ne 0 ]]; then
     command -v sudo >/dev/null || stop_met_fout "sudo is nodig (of draai het script als root)."
     SUDO=(sudo)
@@ -193,10 +226,20 @@ installeer_docker() {
 
 zet_firewall() {
   stap "Firewall instellen"
-  "${SUDO[@]}" ufw allow OpenSSH >/dev/null 2>&1 || "${SUDO[@]}" ufw allow 22/tcp >/dev/null
-  if [[ -n "${SSH_CONNECTION:-}" ]]; then
-    "${SUDO[@]}" ufw allow "$(awk '{ print $4 }' <<<"$SSH_CONNECTION")/tcp" >/dev/null
+  # SSH eerst openzetten, voordat de firewall aangaat. SSH_CONNECTION ontbreekt na sudo of su -,
+  # dus ook de poorten van sshd zelf meenemen.
+  local uit_sshd uit_ss poorten poort
+  uit_sshd="$("${SUDO[@]}" sshd -T 2>/dev/null || true)"
+  uit_ss="$("${SUDO[@]}" ss -tlnpH 2>/dev/null || true)"
+  poorten="$(ssh_poorten "$uit_sshd" "${SSH_CONNECTION:-}" "$uit_ss")"
+  if [[ -z "$poorten" ]]; then
+    waarschuw "Kon de SSH-poort niet bepalen; ik ga uit van poort 22. Draait SSH op een andere poort, open die dan zelf met: sudo ufw allow <poort>/tcp"
+    poorten=22
   fi
+  for poort in $poorten; do
+    "${SUDO[@]}" ufw allow "$poort/tcp" >/dev/null
+    info "SSH-poort $poort opengezet"
+  done
   "${SUDO[@]}" ufw allow 80/tcp >/dev/null
   "${SUDO[@]}" ufw allow 443/tcp >/dev/null
   "${SUDO[@]}" ufw --force enable >/dev/null
@@ -239,12 +282,15 @@ schrijf_env() {
   # zodat een onderbreking nooit een half .env achterlaat (dan zou "hervatten" falen).
   wachtwoord="$(willekeurig 24)"
   nieuw="$(mktemp "$env.XXXXXX")"
-  zet_env_waarde "$nieuw" DOMEIN "$DOMEIN"
-  zet_env_waarde "$nieuw" POSTGRES_PASSWORD "$wachtwoord"
-  zet_env_waarde "$nieuw" GOOGLE_MAPS_API_KEY "$GOOGLE"
-  zet_env_waarde "$nieuw" NTFY_TOKEN ""
-  chmod 600 "$nieuw"
-  mv "$nieuw" "$env"
+  if ! { zet_env_waarde "$nieuw" DOMEIN "$DOMEIN" &&
+    zet_env_waarde "$nieuw" POSTGRES_PASSWORD "$wachtwoord" &&
+    zet_env_waarde "$nieuw" GOOGLE_MAPS_API_KEY "$GOOGLE" &&
+    zet_env_waarde "$nieuw" NTFY_TOKEN "" &&
+    chmod 600 "$nieuw" &&
+    mv "$nieuw" "$env"; }; then
+    rm -f "$nieuw"
+    return 1
+  fi
   gelukt "$env (alleen leesbaar voor jou)"
 }
 
@@ -261,7 +307,7 @@ wacht_op_site() {
   # De app zelf bevragen, binnen de container: dit heeft geen HTTPS-certificaat nodig,
   # dus een DNS-probleem levert straks een waarschuwing op in plaats van een afgebroken installatie.
   for i in $(seq 1 100); do
-    if dc exec -T app node -e "fetch('http://127.0.0.1:3000/login').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))" >/dev/null 2>&1; then break; fi
+    if dc exec -T app node -e "fetch('http://127.0.0.1:3000/login',{signal:AbortSignal.timeout(5000)}).then(r=>process.exit(r.ok?0:1),()=>process.exit(1))" >/dev/null 2>&1; then break; fi
     if [[ $i -eq 100 ]]; then
       stop_met_fout "Het takenbord antwoordt niet. Bekijk de logs met: docker compose -f $MAP/docker-compose.yml logs app caddy"
     fi
@@ -324,7 +370,10 @@ stel_ntfy_in() {
 werk_bij() {
   kies_docker
   stap "Controleren op lokale wijzigingen"
-  if [[ -n "$(git -C "$MAP" status --porcelain)" ]]; then
+  local wijzigingen
+  wijzigingen="$(git -C "$MAP" status --porcelain)" ||
+    stop_met_fout "Kon niet bepalen of er lokale wijzigingen zijn in $MAP (git status mislukte). Controleer of je de eigenaar van de map bent en of het een git-map is."
+  if [[ -n "$wijzigingen" ]]; then
     stop_met_fout "Er zijn lokale wijzigingen in $MAP. Zet ze opzij (git -C $MAP stash) en draai het script opnieuw."
   fi
   gelukt "Geen lokale wijzigingen"
@@ -342,14 +391,24 @@ werk_bij() {
   wacht_op_site
 }
 
-samenvatting() {
+controleer_oude_data() {
+  stap "Controleren op een bestaande database"
+  if heeft_oude_data; then
+    stop_met_fout "Er is al een database van een eerdere installatie (docker-volume takenbord_db-data). Die bewaart het oude wachtwoord, dat niet bij de nieuwe .env past. Kies: herstel je oude .env in $MAP, of verwijder de oude database met 'docker volume rm takenbord_db-data' (alle gegevens daarin gaan verloren) en draai het script opnieuw."
+  fi
+  gelukt "Geen oude database"
+}
+
+samenvatting() { # $1 = modus; bij bijwerken een korte samenvatting zonder wachtwoorden
   local env="$MAP/.env" domein
   domein="$(lees_env_waarde "$env" DOMEIN)"
   printf '\n\033[1mKlaar!\033[0m\n'
   info "Takenbord:    https://$domein"
-  info "ntfy-server:  https://ntfy.$domein (gebruiker $(lees_env_waarde "$env" NTFY_GEBRUIKER), wachtwoord $(lees_env_waarde "$env" NTFY_WACHTWOORD))"
-  info "              Voeg deze server toe in de ntfy-app en kies het onderwerp in Beheer → Instellingen → Meldingen."
-  info "Back-ups:     elke nacht om 03:00 (bekijken: docker compose -f $MAP/docker-compose.yml exec worker ls /backups)"
+  if [[ "${1:-}" != bijwerken ]]; then
+    info "ntfy-server:  https://ntfy.$domein (gebruiker $(lees_env_waarde "$env" NTFY_GEBRUIKER), wachtwoord $(lees_env_waarde "$env" NTFY_WACHTWOORD))"
+    info "              Voeg deze server toe in de ntfy-app en kies het onderwerp in Beheer → Instellingen → Meldingen."
+  fi
+  info "Back-ups:    elke nacht om 03:00 (bekijken: docker compose -f $MAP/docker-compose.yml exec worker ls /backups)"
   info "Bijwerken:    draai dit script opnieuw: bash $MAP/install.sh"
 }
 
@@ -357,7 +416,17 @@ hoofd() {
   MAP="$(standaard_map "${BASH_SOURCE[0]:-}")"
   trap 'bij_fout $LINENO' ERR
   printf '\033[1mTakenbord installeren of bijwerken\033[0m (map: %s)\n' "$MAP"
-  case "$(bepaal_modus "$MAP")" in
+  if ! eigenaar_klopt "$MAP" "$EUID"; then
+    local eigenaar
+    eigenaar="$(stat -c %U "$MAP")"
+    stop_met_fout "De map $MAP is van gebruiker $eigenaar. Draai dit script als die gebruiker: sudo -u $eigenaar bash $MAP/install.sh"
+  fi
+  local modus
+  modus="$(bepaal_modus "$MAP")"
+  case "$modus" in
+    onleesbaar)
+      stop_met_fout "Kan $MAP/.env niet lezen (geen gewoon bestand of geen leesrechten). Draai het script als de eigenaar van het bestand (zie: ls -l $MAP/.env) of herstel de rechten; ik ga niet opnieuw installeren."
+      ;;
     bijwerken)
       werk_bij
       ;;
@@ -369,6 +438,7 @@ hoofd() {
       installeer_docker
       zet_firewall
       haal_code
+      controleer_oude_data
       controleer_dns
       schrijf_env
       start_stack
@@ -385,8 +455,10 @@ hoofd() {
       stel_ntfy_in
       ;;
   esac
-  zet_env_waarde "$MAP/.env" INSTALLATIE_KLAAR 1
-  samenvatting
+  if [[ "$(lees_env_waarde "$MAP/.env" INSTALLATIE_KLAAR)" != 1 ]]; then
+    zet_env_waarde "$MAP/.env" INSTALLATIE_KLAAR 1
+  fi
+  samenvatting "$modus"
 }
 
 # Pas aan het eind aanroepen: een half gedownload script doet zo niets, en `git pull` breekt het lopende script niet.
