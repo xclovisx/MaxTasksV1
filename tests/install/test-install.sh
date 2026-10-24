@@ -69,6 +69,41 @@ controleer "map naast het script" is_gelijk "$(standaard_map "$tmp/checkout/inst
 controleer "map bij curl | bash" is_gelijk "$(standaard_map "")" /opt/takenbord
 controleer "map uit TAKENBORD_MAP" is_gelijk "$(TAKENBORD_MAP=/srv/bord standaard_map "")" /srv/bord
 
+# schrijf_env: complete .env, atomair
+mkdir -p "$tmp/map-ok" "$tmp/map-stuk"
+(
+  MAP="$tmp/map-ok" DOMEIN=takenbord.nl GOOGLE=sleutel123
+  schrijf_env >/dev/null
+)
+controleer "schrijf_env: domein" is_gelijk "$(lees_env_waarde "$tmp/map-ok/.env" DOMEIN)" takenbord.nl
+controleer "schrijf_env: google-sleutel" is_gelijk "$(lees_env_waarde "$tmp/map-ok/.env" GOOGLE_MAPS_API_KEY)" sleutel123
+controleer "schrijf_env: lege ntfy-token" is_gelijk "$(grep -c '^NTFY_TOKEN=$' "$tmp/map-ok/.env")" 1
+controleer "schrijf_env: wachtwoord van 48 hex-tekens" heeft_patroon "$(lees_env_waarde "$tmp/map-ok/.env" POSTGRES_PASSWORD)" '^[0-9a-f]{48}$'
+controleer "schrijf_env: rechten 600" is_gelijk "$(stat -c %a "$tmp/map-ok/.env")" 600
+controleer "schrijf_env: geen tijdelijke bestanden" is_gelijk "$(ls -A "$tmp/map-ok")" ".env"
+(
+  MAP="$tmp/map-stuk" DOMEIN=takenbord.nl GOOGLE=""
+  willekeurig() { return 1; }
+  set -e
+  schrijf_env >/dev/null
+) 2>/dev/null
+controleer "schrijf_env: bij een fout geen half .env" is_gelijk "$(ls -A "$tmp/map-stuk")" ""
+
+# wacht_op_site: de eerste lus mag geen certificaat nodig hebben
+sleep() { :; }
+curl() { return 1; }
+dc() { return 0; }
+mkdir -p "$tmp/map-wacht"
+zet_env_waarde "$tmp/map-wacht/.env" DOMEIN takenbord.nl
+wacht_zonder_certificaat() { MAP="$tmp/map-wacht" wacht_op_site 2>&1; }
+uitvoer="$(wacht_zonder_certificaat)"
+controleer "wacht_op_site: zonder certificaat gaat de installatie door" heeft_patroon "$uitvoer" 'De app draait'
+controleer "wacht_op_site: waarschuwt over het certificaat" heeft_patroon "$uitvoer" 'Nog geen geldig HTTPS-certificaat'
+dc() { return 1; }
+uitvoer="$( (MAP="$tmp/map-wacht" wacht_op_site) 2>&1 )"
+controleer "wacht_op_site: foutmelding als de app niet antwoordt" heeft_patroon "$uitvoer" 'antwoordt niet'
+unset -f sleep curl dc
+
 rm -rf "$tmp"
 echo
 if [[ $fouten -eq 0 ]]; then

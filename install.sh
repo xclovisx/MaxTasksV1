@@ -234,11 +234,17 @@ controleer_dns() {
 
 schrijf_env() {
   stap "Configuratie schrijven"
-  local env="$MAP/.env"
-  zet_env_waarde "$env" DOMEIN "$DOMEIN"
-  zet_env_waarde "$env" POSTGRES_PASSWORD "$(willekeurig 24)"
-  zet_env_waarde "$env" GOOGLE_MAPS_API_KEY "$GOOGLE"
-  zet_env_waarde "$env" NTFY_TOKEN ""
+  local env="$MAP/.env" nieuw wachtwoord
+  # Eerst een volledig bestand naast .env bouwen en dan in één keer op zijn plek zetten,
+  # zodat een onderbreking nooit een half .env achterlaat (dan zou "hervatten" falen).
+  wachtwoord="$(willekeurig 24)"
+  nieuw="$(mktemp "$env.XXXXXX")"
+  zet_env_waarde "$nieuw" DOMEIN "$DOMEIN"
+  zet_env_waarde "$nieuw" POSTGRES_PASSWORD "$wachtwoord"
+  zet_env_waarde "$nieuw" GOOGLE_MAPS_API_KEY "$GOOGLE"
+  zet_env_waarde "$nieuw" NTFY_TOKEN ""
+  chmod 600 "$nieuw"
+  mv "$nieuw" "$env"
   gelukt "$env (alleen leesbaar voor jou)"
 }
 
@@ -252,8 +258,10 @@ wacht_op_site() {
   stap "Wachten tot het takenbord antwoordt"
   local domein i
   domein="$(lees_env_waarde "$MAP/.env" DOMEIN)"
+  # De app zelf bevragen, binnen de container: dit heeft geen HTTPS-certificaat nodig,
+  # dus een DNS-probleem levert straks een waarschuwing op in plaats van een afgebroken installatie.
   for i in $(seq 1 100); do
-    if curl -skf --max-time 5 --resolve "$domein:443:127.0.0.1" -o /dev/null "https://$domein/login"; then break; fi
+    if dc exec -T app node -e "fetch('http://127.0.0.1:3000/login').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))" >/dev/null 2>&1; then break; fi
     if [[ $i -eq 100 ]]; then
       stop_met_fout "Het takenbord antwoordt niet. Bekijk de logs met: docker compose -f $MAP/docker-compose.yml logs app caddy"
     fi
