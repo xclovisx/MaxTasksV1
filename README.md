@@ -64,15 +64,15 @@ Voor een Linux-server (bijv. een VPS met Ubuntu 24.04) met een eigen IP-adres. A
 ### Snel: met het installatiescript (aanbevolen)
 
 1. Laat je domein én `ntfy.<domein>` met een A-record naar het IP-adres van de server wijzen.
-2. Log via SSH in op de server (als gebruiker met sudo, of als root) en draai:
+2. Log via SSH in op de server (Ubuntu of Debian; als gebruiker met sudo, of als root) en draai:
    ```bash
    curl -fsSL https://raw.githubusercontent.com/xclovisx/MaxTasksV1/main/install.sh | bash
    ```
-3. Beantwoord de vragen (domeinnaam, je naam, gebruikersnaam en wachtwoord, optioneel de Google-sleutel).
+3. Beantwoord de vragen (domeinnaam, optioneel de Google-sleutel, je naam, gebruikersnaam en wachtwoord).
 
-Het script installeert Docker, zet de firewall (alleen SSH, 80 en 443), haalt de code op in `/opt/takenbord`, schrijft `.env`, start alles, maakt je beheerdersaccount aan en regelt HTTPS, ntfy en de nachtelijke back-ups. Aan het eind zie je het adres van het takenbord en de ntfy-gegevens voor de app. De firewall zet het script alleen aan als het de SSH-poort kan bepalen; lukt dat niet, dan staat dat in de samenvatting. Draai het script ook altijd als dezelfde gebruiker: het weigert als `/opt/takenbord` van een andere gebruiker is.
+Het script installeert Docker, zet de firewall (alleen SSH, 80 en 443), haalt de code op in `/opt/takenbord`, schrijft `.env`, start alles, maakt je beheerdersaccount aan en regelt HTTPS, ntfy en de nachtelijke back-ups. Aan het eind zie je het adres van het takenbord en de ntfy-gegevens voor de app. De firewall zet het script alleen aan als het de SSH-poort kan bepalen; lukt dat niet, dan staat dat in de samenvatting. Draai het script ook altijd als de eigenaar van `/opt/takenbord` (de gebruiker die de eerste installatie deed): als een andere gebruiker weigert het.
 
-**Bijwerken:** draai dezelfde regel opnieuw (of `bash /opt/takenbord/install.sh`). Het script maakt eerst een back-up en haalt dan de nieuwste versie op. Wordt een installatie halverwege afgebroken, dan gaat het script bij de volgende keer verder waar het gebleven was.
+**Bijwerken:** draai dezelfde regel opnieuw (of `bash /opt/takenbord/install.sh`). Het script probeert eerst een back-up te maken (lukt dat niet, dan waarschuwt het en gaat het door) en haalt dan de nieuwste versie op. Wordt een installatie halverwege afgebroken, dan gaat het script bij de volgende keer verder waar het gebleven was.
 
 ### Handmatig (naslag)
 
