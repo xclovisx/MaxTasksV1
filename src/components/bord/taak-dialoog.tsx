@@ -58,9 +58,11 @@ export function TaakDialoog({ modus, isBeheerder, onSluit }: { modus: DialoogMod
   const sluitRef = useRef(onSluit);
   useEffect(() => { sluitRef.current = onSluit; });
 
-  // Titel alleen bij het openen focussen; hertekenen van de ouder mag de focus niet stelen.
+  // Titel alleen bij het openen van een nieuwe taak focussen, en alleen met een muis: op een telefoon zou het
+  // toetsenbord dan meteen het scherm vullen. Hertekenen van de ouder mag de focus niet stelen.
+  const focusTitel = modus.soort === 'nieuw';
   useEffect(() => {
-    titelRef.current?.focus();
+    if (focusTitel && window.matchMedia('(pointer: fine)').matches) titelRef.current?.focus();
     const bijToets = (e: KeyboardEvent) => { if (e.key === 'Escape') sluitRef.current(); };
     window.addEventListener('keydown', bijToets);
     return () => window.removeEventListener('keydown', bijToets);
