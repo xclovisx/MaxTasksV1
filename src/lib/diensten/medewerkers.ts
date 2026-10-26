@@ -60,3 +60,11 @@ export async function zetActief(ctx: Context, gebruikerId: string, actief: boole
     if (!actief) await tx`delete from sessies where gebruiker_id = ${gebruikerId}`;
   });
 }
+
+export async function verwijderMedewerker(ctx: Context, gebruikerId: string): Promise<void> {
+  vereisBeheerder(ctx);
+  if (!isUuid(gebruikerId)) throw new NietGevonden('Medewerker niet gevonden');
+  // Sessies verdwijnen mee (cascade); taken en historie houden hun regels, zonder naam (set null).
+  const rijen = await db()`delete from gebruikers where id = ${gebruikerId} and rol = 'medewerker' returning id`;
+  if (rijen.length === 0) throw new NietGevonden('Medewerker niet gevonden');
+}

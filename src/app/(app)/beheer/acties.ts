@@ -4,7 +4,7 @@ import { wijzigEigenWachtwoord } from '@/lib/auth/accounts';
 import type { Activatie } from '@/lib/auth/activatie';
 import { maakBord, wijzigBord } from '@/lib/diensten/borden';
 import { wijzigInstellingen } from '@/lib/diensten/instellingen';
-import { maakMedewerker, nieuweActivatie, zetActief } from '@/lib/diensten/medewerkers';
+import { maakMedewerker, nieuweActivatie, verwijderMedewerker, zetActief } from '@/lib/diensten/medewerkers';
 import { stuurTestmelding, wijzigNtfyOnderwerp } from '@/lib/diensten/meldingen';
 import { Ongeldig } from '@/lib/fouten';
 import { type ActieResultaat, type ActivatieWeergave, voerUit } from '@/lib/web/actie';
@@ -63,6 +63,13 @@ export async function nieuweLinkActie(gebruikerId: string): Promise<ActieResulta
 export async function zetActiefActie(gebruikerId: string, actief: boolean): Promise<ActieResultaat> {
   return voerUit(async () => {
     await zetActief(await ctx(), gebruikerId, actief);
+    return null;
+  });
+}
+
+export async function verwijderMedewerkerActie(gebruikerId: string): Promise<ActieResultaat> {
+  return voerUit(async () => {
+    await verwijderMedewerker(await ctx(), gebruikerId);
     return null;
   });
 }

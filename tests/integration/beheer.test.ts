@@ -6,9 +6,10 @@ import type { Context } from '../../src/lib/context';
 import { transactie } from '../../src/lib/db/client';
 import { bordInTx, haalBord, lijstBorden, maakBord, wijzigBord } from '../../src/lib/diensten/borden';
 import { haalInstellingen, wijzigInstellingen } from '../../src/lib/diensten/instellingen';
-import { lijstMedewerkers, maakMedewerker, nieuweActivatie, zetActief } from '../../src/lib/diensten/medewerkers';
+import { lijstMedewerkers, maakMedewerker, nieuweActivatie, verwijderMedewerker, zetActief } from '../../src/lib/diensten/medewerkers';
+import { haalTaak, maakTaak, taakHistorie, wijzigTaak } from '../../src/lib/diensten/taken';
 import { GeenToegang, NietGevonden, Ongeldig } from '../../src/lib/fouten';
-import { leegDatabase, maakBeheerderCtx, maakMedewerkerCtx } from './helpers';
+import { leegDatabase, maakBeheerderCtx, maakBord as maakTestbord, maakMedewerkerCtx } from './helpers';
 
 let beheerder: Context;
 
@@ -52,6 +53,7 @@ describe('rechten', () => {
     await expect(lijstMedewerkers(piet)).rejects.toBeInstanceOf(GeenToegang);
     await expect(nieuweActivatie(piet, medewerker.id)).rejects.toBeInstanceOf(GeenToegang);
     await expect(zetActief(piet, medewerker.id, false)).rejects.toBeInstanceOf(GeenToegang);
+    await expect(verwijderMedewerker(piet, medewerker.id)).rejects.toBeInstanceOf(GeenToegang);
     expect((await haalInstellingen()).naam).toBe('Garage');
   });
 });
@@ -132,5 +134,26 @@ describe('medewerkers', () => {
     await expect(nieuweActivatie(beheerder, randomUUID())).rejects.toBeInstanceOf(NietGevonden);
     await expect(zetActief(beheerder, randomUUID(), false)).rejects.toBeInstanceOf(NietGevonden);
     await expect(zetActief(beheerder, beheerder.gebruikerId, false)).rejects.toBeInstanceOf(NietGevonden);
+    await expect(verwijderMedewerker(beheerder, 'onzin')).rejects.toBeInstanceOf(NietGevonden);
+    await expect(verwijderMedewerker(beheerder, randomUUID())).rejects.toBeInstanceOf(NietGevonden);
+    await expect(verwijderMedewerker(beheerder, beheerder.gebruikerId)).rejects.toBeInstanceOf(NietGevonden);
+  });
+
+  it('verwijderen wist de medewerker en zijn sessies; zijn taken en historie blijven zonder naam', async () => {
+    const piet = await maakMedewerkerCtx('piet', 'Piet');
+    const sessie = await maakSessie(piet.gebruikerId);
+    const bordId = await maakTestbord('Takenbord');
+    const velden = { titel: 'Banden wisselen', omschrijving: '', datum: '2026-10-22', tijd: null, prioriteit: 'middel' as const };
+    const { id: taakId } = await maakTaak(piet, { bordId, herhaling: null, ...velden });
+    await wijzigTaak(piet, taakId, 1, { ...velden, prioriteit: 'hoog' });
+
+    await verwijderMedewerker(beheerder, piet.gebruikerId);
+
+    expect(await lijstMedewerkers(beheerder)).toEqual([]);
+    expect(await gebruikerVoorSessie(sessie.token)).toBeNull();
+    expect((await haalTaak(taakId)).gewijzigdDoorNaam).toBeNull();
+    expect((await taakHistorie(taakId)).map((h) => h.naam)).toEqual([null]);
+    const opnieuw = await maakMedewerker(beheerder, { naam: 'Piet', gebruikersnaam: 'piet' });
+    expect(opnieuw.id).not.toBe(piet.gebruikerId);
   });
 });
