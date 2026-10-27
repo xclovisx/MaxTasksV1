@@ -1,4 +1,5 @@
 import type { Context } from '../context';
+import type { Bijlage } from '../domein/bijlagen';
 import { db, transactie, type Tx } from '../db/client';
 import { meldWijziging } from '../db/gebeurtenissen';
 import { type Datum, vandaagInAmsterdam } from '../domein/datums';
@@ -39,6 +40,7 @@ export type Taak = {
   bordNaam: string;
   bordGearchiveerd: boolean;
   stops: Stop[];
+  bijlagen: Bijlage[];
 };
 
 export type HistorieRegel = { tijdstip: Date; naam: string | null; wijzigingen: Record<string, { oud: unknown; nieuw: unknown }> };

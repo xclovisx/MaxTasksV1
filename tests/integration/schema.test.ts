@@ -84,3 +84,28 @@ describe('locaties-schema', () => {
       .rejects.toThrow(/locaties_google_place_id_key/);
   });
 });
+
+describe('bijlagen in taken_weergave', () => {
+  beforeEach(leegDatabase);
+
+  it('geeft de bijlagen van een taak op volgorde, en [] zonder bijlagen', async () => {
+    const { bordId, taakId: t1 } = await maakBordMetTaak();
+    const [t2] = await db()<{ id: string }[]>`
+      insert into taken (bord_id, titel, datum, prioriteit, oorspronkelijke_datum)
+      values (${bordId}, 'Zonder', '2026-10-27', 'laag', '2026-10-27') returning id`;
+    await db()`insert into bijlagen (taak_id, naam, type, grootte, aangemaakt_op) values
+      (${t1}, 'b.pdf', 'application/pdf', 20, now()), (${t1}, 'a.jpg', 'image/jpeg', 10, now() - interval '1 minute')`;
+    const rijen = await db()<{ titel: string; bijlagen: { naam: string; type: string; grootte: number }[] }[]>`
+      select titel, bijlagen from taken_weergave where id in (${t1}, ${t2.id}) order by titel desc`;
+    expect(rijen.map((r) => r.titel)).toEqual(['Zonder', 'Olie verversen']);
+    expect(rijen[1].bijlagen.map((b) => b.naam)).toEqual(['a.jpg', 'b.pdf']);
+    expect(rijen[1].bijlagen[0]).toMatchObject({ naam: 'a.jpg', type: 'image/jpeg', grootte: 10 });
+    expect(rijen[0].bijlagen).toEqual([]);
+  });
+
+  it('weigert een onbekend type en een te groot bestand', async () => {
+    const { taakId } = await maakBordMetTaak();
+    await expect(db()`insert into bijlagen (taak_id, naam, type, grootte) values (${taakId}, 'x.gif', 'image/gif', 1)`).rejects.toThrow();
+    await expect(db()`insert into bijlagen (taak_id, naam, type, grootte) values (${taakId}, 'x.pdf', 'application/pdf', 10485761)`).rejects.toThrow();
+  });
+});
