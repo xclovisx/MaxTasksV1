@@ -1,8 +1,11 @@
+import { existsSync } from 'node:fs';
 import { mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { backupNaam, maakBackup, teVerwijderen, type Uitvoerder } from '../../src/worker/taken/backup';
+import { OpslagOntbreekt } from '../../src/lib/fouten';
+import { OPSLAG_MARKER } from '../../src/lib/opslag';
+import { backupMetMelding, backupNaam, maakBackup, teVerwijderen, type Uitvoerder } from '../../src/worker/taken/backup';
 
 let map: string;
 
@@ -70,5 +73,32 @@ describe('back-up', () => {
     await writeFile(path.join(map, 'notities.deel'), 'blijft');
     await maakBackup({ map, databaseUrl: 'postgres://u:p@db/takenbord', vandaag: '2026-10-24', voerUit: nepDump });
     expect((await readdir(map)).sort()).toEqual(['notities.deel', 'takenbord-2026-10-24.dump']);
+  });
+});
+
+describe('back-up op de opslagschijf', () => {
+  it('weigert met controle als het controlebestand ontbreekt, en maakt de map niet aan', async () => {
+    const sub = path.join(map, 'schijf');
+    await expect(maakBackup({ map: sub, databaseUrl: 'postgres://u:p@db/t', vandaag: '2026-10-27', controle: true, voerUit: nepDump }))
+      .rejects.toBeInstanceOf(OpslagOntbreekt);
+    expect(existsSync(sub)).toBe(false);
+  });
+
+  it('werkt met controle als het controlebestand er is', async () => {
+    await writeFile(path.join(map, OPSLAG_MARKER), '');
+    const r = await maakBackup({ map, databaseUrl: 'postgres://u:p@db/t', vandaag: '2026-10-27', controle: true, voerUit: nepDump });
+    expect(r.bestand).toBe(path.join(map, 'takenbord-2026-10-27.dump'));
+  });
+
+  it('backupMetMelding meldt een mislukte back-up en niet een gelukte', async () => {
+    const meldingen: [string, string][] = [];
+    const meld = async (titel: string, tekst: string) => { meldingen.push([titel, tekst]); };
+    const basis = { map, databaseUrl: 'postgres://u:p@db/t', vandaag: '2026-10-27', meld };
+    expect(await backupMetMelding({ ...basis, controle: false, voerUit: nepDump })).toBe(true);
+    expect(meldingen).toEqual([]);
+    expect(await backupMetMelding({ ...basis, map: path.join(map, 'weg'), controle: true, voerUit: nepDump })).toBe(false);
+    expect(meldingen).toEqual([['Back-up mislukt', 'Back-up van het takenbord mislukt: Opslagschijf niet gevonden, waarschuw de beheerder.']]);
+    expect(await backupMetMelding({ ...basis, databaseUrl: undefined, controle: false })).toBe(false);
+    expect(meldingen[1][1]).toBe('Back-up van het takenbord mislukt: DATABASE_URL ontbreekt');
   });
 });

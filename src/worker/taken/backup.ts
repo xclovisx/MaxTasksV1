@@ -1,7 +1,8 @@
 import { spawn } from 'node:child_process';
-import { mkdir, readdir, rename, rm } from 'node:fs/promises';
+import { readdir, rename, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { type Datum, plusDagen } from '../../lib/domein/datums';
+import { vereisOpslag } from '../../lib/opslag';
 
 export const BEWAAR_DAGEN = 14;
 const PATROON = /^takenbord-(\d{4}-\d{2}-\d{2})\.dump$/;
@@ -51,10 +52,11 @@ export async function maakBackup(o: {
   map: string;
   databaseUrl: string;
   vandaag: Datum;
+  controle?: boolean;
   voerUit?: Uitvoerder;
 }): Promise<{ bestand: string; verwijderd: string[] }> {
   const env = pgOmgeving(o.databaseUrl);
-  await mkdir(o.map, { recursive: true });
+  await vereisOpslag(o.map, o.controle ?? false);
   // Restanten van een eerder afgebroken run.
   for (const b of await readdir(o.map)) {
     if (DEEL_PATROON.test(b)) await rm(path.join(o.map, b), { force: true });
@@ -71,4 +73,26 @@ export async function maakBackup(o: {
   const verwijderd = teVerwijderen(await readdir(o.map), o.vandaag);
   await Promise.all(verwijderd.map((b) => rm(path.join(o.map, b))));
   return { bestand, verwijderd };
+}
+
+/** Maakt de back-up en meldt een storing aan de beheerder; gooit nooit. */
+export async function backupMetMelding(o: {
+  map: string;
+  databaseUrl: string | undefined;
+  vandaag: Datum;
+  controle: boolean;
+  voerUit?: Uitvoerder;
+  meld: (titel: string, tekst: string) => Promise<void>;
+}): Promise<boolean> {
+  try {
+    if (!o.databaseUrl) throw new Error('DATABASE_URL ontbreekt');
+    const r = await maakBackup({ map: o.map, databaseUrl: o.databaseUrl, vandaag: o.vandaag, controle: o.controle, voerUit: o.voerUit });
+    console.log(`[worker] back-up gemaakt: ${r.bestand}${r.verwijderd.length ? `, ${r.verwijderd.length} oude verwijderd` : ''}`);
+    return true;
+  } catch (e) {
+    const reden = e instanceof Error ? e.message : String(e);
+    console.error('[worker] back-up mislukt', e);
+    await o.meld('Back-up mislukt', `Back-up van het takenbord mislukt: ${reden}`);
+    return false;
+  }
 }

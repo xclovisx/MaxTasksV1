@@ -1,10 +1,11 @@
 import { vandaagInAmsterdam } from '../lib/domein/datums';
+import { opslagControleAan } from '../lib/opslag';
 import { maakBackup } from '../worker/taken/backup';
 
 async function main() {
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) throw new Error('DATABASE_URL ontbreekt');
-  const r = await maakBackup({ map: process.env.BACKUP_MAP ?? 'backups', databaseUrl, vandaag: vandaagInAmsterdam() });
+  const r = await maakBackup({ map: process.env.BACKUP_MAP ?? 'backups', databaseUrl, vandaag: vandaagInAmsterdam(), controle: opslagControleAan() });
   console.log(`Back-up gemaakt: ${r.bestand}`);
 }
 

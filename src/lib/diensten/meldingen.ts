@@ -36,6 +36,18 @@ export async function meldUrgenteTaak(ctx: Context, oud: Prioriteit | null, t: U
   }
 }
 
+/** Meldt een storing (bijv. een mislukte back-up) aan de beheerder. Gooit nooit: een storing wordt gelogd. */
+export async function meldStoring(titel: string, tekst: string, haal: typeof fetch = fetch): Promise<void> {
+  try {
+    if (!ntfyServer()) return;
+    const onderwerp = await haalNtfyOnderwerp();
+    if (!onderwerp) return;
+    await stuurNtfy(onderwerp, { titel, tekst, prioriteit: 4, tags: ['warning'], link: appUrl() }, haal);
+  } catch (e) {
+    console.error('[ntfy] storingsmelding versturen mislukt', e);
+  }
+}
+
 export async function stuurTestmelding(ctx: Context, haal: typeof fetch = fetch): Promise<void> {
   vereisBeheerder(ctx);
   const onderwerp = await haalNtfyOnderwerp();

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest';
 import type { Context } from '../../src/lib/context';
-import { haalNtfyOnderwerp, stuurTestmelding, wijzigNtfyOnderwerp } from '../../src/lib/diensten/meldingen';
+import { haalNtfyOnderwerp, meldStoring, stuurTestmelding, wijzigNtfyOnderwerp } from '../../src/lib/diensten/meldingen';
 import { haalTaak, maakTaak, wijzigTaak } from '../../src/lib/diensten/taken';
 import type { Prioriteit } from '../../src/lib/domein/taak';
 import { GeenToegang } from '../../src/lib/fouten';
@@ -100,5 +100,24 @@ describe('pushmeldingen', () => {
     await wijzigNtfyOnderwerp(beheerder, 'garage-max');
     haal.mockResolvedValue(new Response('', { status: 500 }));
     await expect(stuurTestmelding(beheerder)).rejects.toBeInstanceOf(NtfyMislukt);
+  });
+});
+
+describe('storingsmelding', () => {
+  it('stuurt een melding naar het ingestelde onderwerp', async () => {
+    await meldStoring('Back-up mislukt', 'Back-up van het takenbord mislukt: x');
+    expect(verzonden()).toEqual([expect.objectContaining({ topic: 'garage-max', title: 'Back-up mislukt', message: 'Back-up van het takenbord mislukt: x' })]);
+  });
+
+  it('doet niets zonder onderwerp of server, en gooit nooit', async () => {
+    delete process.env.NTFY_URL;
+    await meldStoring('A', 'B');
+    process.env.NTFY_URL = 'https://ntfy.test';
+    haal.mockImplementation(async () => new Response('', { status: 500 }));
+    await expect(meldStoring('A', 'B')).resolves.toBeUndefined();
+    await wijzigNtfyOnderwerp(beheerder, '');
+    haal.mockClear();
+    await meldStoring('A', 'B');
+    expect(haal).not.toHaveBeenCalled();
   });
 });
