@@ -1,6 +1,11 @@
 export const BIJLAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'] as const;
 export type BijlageType = (typeof BIJLAGE_TYPES)[number];
-export type Bijlage = { id: string; naam: string; type: BijlageType; grootte: number };
+export const CODE_FORMATEN = ['QRCode', 'Code128', 'Code39', 'Code93', 'EAN13', 'EAN8', 'UPCA', 'UPCE', 'ITF', 'Codabar'] as const;
+export type CodeFormaat = (typeof CODE_FORMATEN)[number];
+export type Code = { formaat: CodeFormaat; tekst: string };
+export const MAX_CODE_TEKST = 2000;
+
+export type Bijlage = { id: string; naam: string; type: BijlageType; grootte: number; code: Code | null };
 
 export const MAX_BIJLAGE_BYTES = 10 * 1024 * 1024;
 export const MAX_BIJLAGEN_PER_TAAK = 10;
@@ -54,4 +59,32 @@ export function formatGrootte(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} kB`;
   return `${(bytes / (1024 * 1024)).toFixed(1).replace('.', ',')} MB`;
+}
+
+export const isQr = (f: CodeFormaat): boolean => f === 'QRCode';
+
+/** Alleen een geldig gelezen code met gewone tekst; binaire inhoud tonen we niet als tekst. */
+export function geldigeCode(r: { format: string; text: string; isValid: boolean; contentType: string }): Code | null {
+  if (!r.isValid || !(CODE_FORMATEN as readonly string[]).includes(r.format)) return null;
+  if (r.contentType !== 'Text' && r.contentType !== 'GS1') return null;
+  if (r.text.length === 0 || r.text.length > MAX_CODE_TEKST) return null;
+  return { formaat: r.format as CodeFormaat, tekst: r.text };
+}
+
+type Punt = { x: number; y: number };
+export type Positie = { topLeft: Punt; topRight: Punt; bottomRight: Punt; bottomLeft: Punt };
+
+function oppervlak(p: Positie): number {
+  const h = [p.topLeft, p.topRight, p.bottomRight, p.bottomLeft];
+  let som = 0;
+  for (let i = 0; i < h.length; i++) {
+    const a = h[i];
+    const b = h[(i + 1) % h.length];
+    som += a.x * b.y - b.x * a.y;
+  }
+  return Math.abs(som) / 2;
+}
+
+export function grootsteCode<T extends { position: Positie }>(resultaten: T[]): T | null {
+  return resultaten.reduce<T | null>((beste, r) => (!beste || oppervlak(r.position) > oppervlak(beste.position) ? r : beste), null);
 }

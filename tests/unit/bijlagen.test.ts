@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  alsJpgNaam, bepaalType, formatGrootte, magOngewijzigd, MAX_BIJLAGE_BYTES, plakNaam, schoonNaam, soortVerwerking,
+  alsJpgNaam, bepaalType, formatGrootte, geldigeCode, grootsteCode, isQr, magOngewijzigd, MAX_BIJLAGE_BYTES, plakNaam, schoonNaam,
+  soortVerwerking,
 } from '../../src/lib/domein/bijlagen';
 
 const bytes = (...x: number[]) => new Uint8Array(x);
@@ -72,5 +73,36 @@ describe('verwerking in de browser', () => {
     expect(formatGrootte(340 * 1024)).toBe('340 kB');
     expect(formatGrootte(1.25 * 1024 * 1024)).toBe('1,3 MB');
     expect(MAX_BIJLAGE_BYTES).toBe(10 * 1024 * 1024);
+  });
+});
+
+describe('codes', () => {
+  const r = (over: Partial<{ format: string; text: string; isValid: boolean; contentType: string }> = {}) =>
+    ({ format: 'QRCode', text: 'ABC', isValid: true, contentType: 'Text', ...over });
+
+  it('geldigeCode accepteert alleen geldige tekst in een bekend formaat', () => {
+    expect(geldigeCode(r())).toEqual({ formaat: 'QRCode', tekst: 'ABC' });
+    expect(geldigeCode(r({ format: 'Code128', contentType: 'GS1' }))).toEqual({ formaat: 'Code128', tekst: 'ABC' });
+    expect(geldigeCode(r({ isValid: false }))).toBeNull();
+    expect(geldigeCode(r({ text: '' }))).toBeNull();
+    expect(geldigeCode(r({ text: 'x'.repeat(2001) }))).toBeNull();
+    expect(geldigeCode(r({ text: 'x'.repeat(2000) }))?.tekst).toHaveLength(2000);
+    expect(geldigeCode(r({ contentType: 'Binary' }))).toBeNull();
+    expect(geldigeCode(r({ format: 'DataMatrix' }))).toBeNull();
+  });
+
+  it('grootsteCode kiest het grootste oppervlak', () => {
+    const vak = (b: number, h: number) => ({
+      position: { topLeft: { x: 0, y: 0 }, topRight: { x: b, y: 0 }, bottomRight: { x: b, y: h }, bottomLeft: { x: 0, y: h } },
+    });
+    const klein = { naam: 'klein', ...vak(10, 10) };
+    const groot = { naam: 'groot', ...vak(30, 20) };
+    expect(grootsteCode([klein, groot])?.naam).toBe('groot');
+    expect(grootsteCode([])).toBeNull();
+  });
+
+  it('isQr', () => {
+    expect(isQr('QRCode')).toBe(true);
+    expect(isQr('Code128')).toBe(false);
   });
 });

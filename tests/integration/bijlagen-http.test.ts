@@ -51,7 +51,7 @@ describe('upload', () => {
   it('slaat een bestand op en geeft 201 met de bijlage', async () => {
     const res = await verwerkUpload(uploadVerzoek(new File([PNG], 'qr.png', { type: 'image/png' })), piet, taakId, APP);
     expect(res.status).toBe(201);
-    expect(await res.json()).toEqual({ id: expect.any(String), naam: 'qr.png', type: 'image/png', grootte: PNG.length });
+    expect(await res.json()).toEqual({ id: expect.any(String), naam: 'qr.png', type: 'image/png', grootte: PNG.length, code: null });
   });
 
   it('weigert zonder sessie, met een verkeerde Origin, zonder bestand of als te groot', async () => {

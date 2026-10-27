@@ -57,7 +57,7 @@ export async function voegBijlageToe(ctx: Context, taakId: string, invoer: { naa
     await rm(doel, { force: true });
     throw e;
   }
-  return { id, naam, type, grootte: invoer.inhoud.length };
+  return { id, naam, type, grootte: invoer.inhoud.length, code: null };
 }
 
 export async function verwijderBijlage(ctx: Context, id: string): Promise<void> {

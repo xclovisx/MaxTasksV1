@@ -41,10 +41,11 @@ afterEach(async () => {
 describe('bijlagen', () => {
   it('voegt een bijlage toe: bestand op schijf, zichtbaar bij de taak en in de historie', async () => {
     const b = await voegBijlageToe(piet, taakId, { naam: 'C:\\fakepath\\qr.png', inhoud: PNG });
-    expect(b).toEqual({ id: expect.any(String), naam: 'qr.png', type: 'image/png', grootte: PNG.length });
+    expect(b).toEqual({ id: expect.any(String), naam: 'qr.png', type: 'image/png', grootte: PNG.length, code: null });
     expect(await bestanden()).toEqual([b.id]);
     expect(new Uint8Array(await readFile(path.join(map, b.id)))).toEqual(PNG);
-    expect((await haalTaak(taakId)).bijlagen).toEqual([b]);
+    // taken_weergave levert nog geen code; dat komt met de database-kolom in Task 2.
+    expect((await haalTaak(taakId)).bijlagen).toEqual([{ ...b, code: undefined }]);
     expect((await taakHistorie(taakId))[0]).toMatchObject({ naam: 'Piet', wijzigingen: { bijlage: { oud: null, nieuw: 'qr.png' } } });
     expect(await haalBijlage(b.id)).toEqual({ naam: 'qr.png', type: 'image/png', pad: path.join(map, b.id) });
   });
