@@ -211,7 +211,63 @@ vraag_gesteld=0
 vraag() { vraag_gesteld=1; }
 stel_opslag_in >/dev/null 2>&1
 controleer "opslag: vraag komt niet terug na een leeg antwoord" is_gelijk "$vraag_gesteld" 0
+# terug naar de systeemschijf: OPSLAG_MAP weg uit .env en opnieuw draaien mag de oude schijfinstellingen niet laten staan
+printf 'DOMEIN=x.nl\nBIJLAGEN_OPSLAG=/mnt/x/bijlagen\nBACKUP_OPSLAG=/mnt/x/backups\nOPSLAG_CONTROLE=1\n' >"$MAP/.env"
+vraag() { printf -v "$1" '%s' ""; }
+stel_opslag_in >/dev/null 2>&1
+controleer "opslag: terug naar de systeemschijf wist de oude instellingen" is_gelijk "$(lees_env_waarde "$MAP/.env" BIJLAGEN_OPSLAG)|$(lees_env_waarde "$MAP/.env" BACKUP_OPSLAG)|$(lees_env_waarde "$MAP/.env" OPSLAG_CONTROLE)|$(grep -c '^OPSLAG_MAP=$' "$MAP/.env")" "|||1"
+controleer "opslag: terug naar de systeemschijf, controle valt weg" controleer_opslag
 unset -f vraag
+
+# KOPIEER_SCRIPT draait in de container; hier met gewone mappen
+mkdir -p "$tmp/oud" "$tmp/nieuw"
+printf 'a' >"$tmp/oud/a.dump"
+printf 'b' >"$tmp/oud/b.dump"
+printf 'nieuw-b' >"$tmp/nieuw/b.dump"
+printf 'x' >"$tmp/oud/leesmij.txt"
+printf 'half' >"$tmp/oud/c.dump.deel"
+printf 'half' >"$tmp/nieuw/a.dump.deel"
+sh -c "$KOPIEER_SCRIPT" sh '*.dump' "$tmp/oud" "$tmp/nieuw"
+controleer "kopieer: nieuw bestand gekopieerd" is_gelijk "$(cat "$tmp/nieuw/a.dump")" a
+controleer "kopieer: bestaand bestand niet overschreven" is_gelijk "$(cat "$tmp/nieuw/b.dump")" nieuw-b
+controleer "kopieer: alleen het patroon" is_gelijk "$(ls "$tmp/nieuw")" "$(printf 'a.dump\nb.dump')"
+mkdir -p "$tmp/oud2" "$tmp/nieuw2"
+printf '1' >"$tmp/oud2/11111111-1111-1111-1111-111111111111"
+printf '2' >"$tmp/oud2/22222222-2222-2222-2222-222222222222"
+printf '3' >"$tmp/oud2/33333333-3333-3333-3333-333333333333.deel"
+printf '' >"$tmp/oud2/.takenbord-opslag"
+mkdir "$tmp/oud2/map"
+sh -c "$KOPIEER_SCRIPT" sh '*' "$tmp/oud2" "$tmp/nieuw2"
+controleer "kopieer: alle gewone bestanden, zonder .deel, map of controlebestand" is_gelijk "$(ls -A "$tmp/nieuw2")" "$(printf '11111111-1111-1111-1111-111111111111\n22222222-2222-2222-2222-222222222222')"
+sh -c "$KOPIEER_SCRIPT" sh '*' "$tmp/oud2" "$tmp/nieuw2"
+controleer "kopieer: een tweede keer wijzigt niets" is_gelijk "$(find "$tmp/nieuw2" -mindepth 1 | wc -l)" 2
+mkdir -p "$tmp/oud3" "$tmp/nieuw3"
+printf 'goed' >"$tmp/oud3/f"
+printf 'afgekapt' >"$tmp/nieuw3/f.deel"
+sh -c "$KOPIEER_SCRIPT" sh '*' "$tmp/oud3" "$tmp/nieuw3"
+controleer "kopieer: een oud .deel-bestand wordt overschreven" is_gelijk "$(cat "$tmp/nieuw3/f")" goed
+controleer "kopieer: geen .deel blijft achter" is_gelijk "$(ls -A "$tmp/nieuw3")" f
+
+# verhuis_volume met een neppe docker
+fake_docker_verhuis() {
+  case "$1" in
+    volume) [[ " ${FAKE_VOLUMES:-} " == *" $3 "* ]] ;;
+    run) printf '%s\n' "$*" >>"$tmp/docker-run.log"; [[ "${FAKE_RUN_FOUT:-0}" != 1 ]] ;;
+  esac
+}
+DOCKER=(fake_docker_verhuis)
+FAKE_VOLUMES=""
+verhuis_volume takenbord_bijlagen "$tmp/nieuw" "*" bijlagen >/dev/null
+controleer "verhuis_volume: zonder oud volume gebeurt er niets" test ! -e "$tmp/docker-run.log"
+FAKE_VOLUMES="takenbord_bijlagen"
+verhuis_volume takenbord_bijlagen "$tmp/nieuw" "*" bijlagen >/dev/null
+controleer "verhuis_volume: oud volume alleen-lezen, geen pull, gebruiker 1000" heeft_patroon "$(cat "$tmp/docker-run.log")" '--pull never --user 1000:1000 .*-v takenbord_bijlagen:/oud:ro -v '"$tmp"'/nieuw:/nieuw takenbord-worker'
+MAP=/opt/takenbord
+FAKE_RUN_FOUT=1
+uitvoer="$( (verhuis_volume takenbord_bijlagen "$tmp/nieuw" "*" bijlagen) 2>&1 )"
+controleer "verhuis_volume: fout noemt het volume, dat het ongemoeid is en de worker-image" heeft_patroon "$uitvoer" 'volume takenbord_bijlagen.*niet aangeraakt.*takenbord-worker.*docker compose build worker'
+FAKE_RUN_FOUT=0
+DOCKER=(docker)
 
 rm -rf "$tmp"
 echo

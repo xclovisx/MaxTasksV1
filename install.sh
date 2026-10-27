@@ -357,14 +357,27 @@ schrijf_env() {
   gelukt "$env (alleen leesbaar voor jou)"
 }
 
-verhuis_backups() { # $1 = nieuwe back-upmap; kopieert eenmalig uit het oude volume, overschrijft niets
-  "${DOCKER[@]}" volume inspect takenbord_backups >/dev/null 2>&1 || return 0
-  info "Bestaande back-ups overzetten…"
-  # shellcheck disable=SC2016 # $f wordt in de container uitgewerkt
-  "${DOCKER[@]}" run --rm --pull never --user 1000:1000 --entrypoint sh -v takenbord_backups:/oud:ro -v "$1":/nieuw takenbord-worker \
-    -c 'for f in /oud/*.dump; do [ -e "$f" ] || continue; [ -e "/nieuw/${f##*/}" ] || cp "$f" /nieuw/ || exit 1; done' ||
-    stop_met_fout "De back-ups konden niet worden gekopieerd naar $1. Er is niets verloren: het oude volume takenbord_backups is niet aangeraakt. Controleer de schijf en draai het script opnieuw."
-  gelukt "Back-ups overgezet (het oude volume takenbord_backups blijft bestaan; zie README)"
+# Kopieert bestanden uit een oud volume naar een nieuwe map. Elk bestand gaat eerst naar <naam>.deel en pas daarna naar
+# zijn echte naam, zodat een onderbroken kopie nooit een afgekapt bestand achterlaat dat een volgende keer voor af geldt.
+# $1 = patroon (bijv. *.dump), $2 = bronmap, $3 = doelmap. Bestaande bestanden in het doel blijven ongemoeid.
+# shellcheck disable=SC2016 # bewust in enkele aanhalingstekens: de container werkt $1 t/m $3 uit
+KOPIEER_SCRIPT='
+for f in "$2"/$1; do
+  n=${f##*/}
+  [ -f "$f" ] || continue
+  case "$n" in .takenbord-opslag|*.deel) continue ;; esac
+  [ -e "$3/$n" ] && continue
+  rm -f "$3/$n.deel"
+  cp "$f" "$3/$n.deel" && mv "$3/$n.deel" "$3/$n" || exit 1
+done'
+
+verhuis_volume() { # $1 = oud volume, $2 = nieuwe map, $3 = patroon van de bestanden, $4 = omschrijving
+  "${DOCKER[@]}" volume inspect "$1" >/dev/null 2>&1 || return 0
+  info "Bestaande $4 overzetten…"
+  "${DOCKER[@]}" run --rm --pull never --user 1000:1000 --entrypoint sh -v "$1":/oud:ro -v "$2":/nieuw takenbord-worker \
+    -c "$KOPIEER_SCRIPT" sh "$3" /oud /nieuw ||
+    stop_met_fout "De $4 uit het volume $1 konden niet worden gekopieerd naar $2. Er is niets verloren: het oude volume $1 is niet aangeraakt. Staat de schijf er nog en is er ruimte? Ontbreekt de lokale image takenbord-worker, dan lost dit het op: cd $MAP && docker compose build worker, en daarna dit script opnieuw draaien."
+  gelukt "$4 overgezet (het oude volume $1 blijft bestaan; zie README)"
 }
 
 controleer_opslag() {
@@ -400,6 +413,11 @@ stel_opslag_in() {
     break
   done
   if [[ -z "$pad" ]]; then
+    # Na een eerder gekozen schijf (OPSLAG_MAP uit .env gehaald) mogen de oude instellingen niet blijven staan.
+    local sleutel
+    for sleutel in BIJLAGEN_OPSLAG BACKUP_OPSLAG OPSLAG_CONTROLE; do
+      ! env_heeft_sleutel "$env" "$sleutel" || zet_env_waarde "$env" "$sleutel" ""
+    done
     zet_env_waarde "$env" OPSLAG_MAP ""
     gelukt "Bijlagen en back-ups blijven op de systeemschijf"
     return
@@ -409,7 +427,8 @@ stel_opslag_in() {
   "${SUDO[@]}" mkdir -p "$pad/bijlagen" "$pad/backups"
   "${SUDO[@]}" touch "$pad/bijlagen/$OPSLAG_MARKER" "$pad/backups/$OPSLAG_MARKER"
   "${SUDO[@]}" chown -R 1000:1000 "$pad/bijlagen" "$pad/backups"
-  verhuis_backups "$pad/backups"
+  verhuis_volume takenbord_backups "$pad/backups" "*.dump" "back-ups"
+  verhuis_volume takenbord_bijlagen "$pad/bijlagen" "*" "bijlagen"
   zet_env_waarde "$env" BIJLAGEN_OPSLAG "$pad/bijlagen"
   zet_env_waarde "$env" BACKUP_OPSLAG "$pad/backups"
   zet_env_waarde "$env" OPSLAG_CONTROLE 1

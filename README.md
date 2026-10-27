@@ -145,14 +145,20 @@ Bijlagen (foto's en PDF's bij taken) en de nachtelijke back-ups kunnen op een tw
    echo "UUID=$(blkid -s UUID -o value /dev/sdb1) /mnt/opslag ext4 defaults,nofail 0 2" >> /etc/fstab
    mount -a && findmnt /mnt/opslag
    ```
-2. Draai `bash /opt/takenbord/install.sh` en geef bij de vraag een map op, bijvoorbeeld `/mnt/opslag/takenbord`. Het script maakt daarin `bijlagen/` en `backups/` aan, met een controlebestand `.takenbord-opslag`, en zet bestaande back-ups over.
+2. Draai `bash /opt/takenbord/install.sh` en geef bij de vraag een map op, bijvoorbeeld `/mnt/opslag/takenbord`. Het script maakt daarin `bijlagen/` en `backups/` aan, met een controlebestand `.takenbord-opslag`, en kopieert bestaande bijlagen en back-ups uit de oude volumes naar de nieuwe mappen (er wordt niets overschreven en niets verwijderd).
 3. Ontbreekt de schijf later (niet aangekoppeld of kapot), dan:
    - weigert het takenbord nieuwe bijlagen met "Opslagschijf niet gevonden";
    - mislukt de back-up met een ntfy-melding;
    - stopt install.sh met uitleg.
 
    Er wordt dan nooit stilletjes naar de systeemschijf geschreven.
-4. Het oude back-upvolume blijft bestaan. Kijk of de back-ups in de nieuwe map staan (`ls /mnt/opslag/takenbord/backups`) en ruim het oude volume dan op met `docker volume rm takenbord_backups`.
+4. De oude volumes blijven bestaan. Kijk of alles in de nieuwe mappen staat (`ls /mnt/opslag/takenbord/backups /mnt/opslag/takenbord/bijlagen`) en ruim de oude volumes dan op met `docker volume rm takenbord_backups takenbord_bijlagen`.
+5. Later terug naar de systeemschijf? Haal de regel `OPSLAG_MAP=...` uit `/opt/takenbord/.env` en draai het script opnieuw: het stelt de vraag dan nog eens. Het takenbord gebruikt daarna weer de volumes op de systeemschijf. Er wordt niets teruggekopieerd: wat op de tweede schijf staat, blijft daar staan.
+
+**Let op:**
+- De schijf moet een Linux-bestandssysteem hebben, zoals ext4. NTFS en exFAT kennen de benodigde eigenaar (uid 1000) niet.
+- **De eerste update naar deze versie moet je twee keer vlak achter elkaar draaien.** De eerste keer haalt het script de nieuwe versie op (en draait nog het oude script); pas de tweede keer stelt het de vraag over de tweede schijf. Doe dit het liefst voordat iemand bijlagen uploadt. Bestaande bijlagen en back-ups worden dan meegekopieerd.
+- Meldt het script dat het kopiëren mislukte, dan is het oude volume niet aangeraakt. Ontbreekt de lokale image `takenbord-worker`, draai dan `docker compose build worker` in `/opt/takenbord` en start het script opnieuw.
 
 Bijlagen staan niet in de nachtelijke back-up. Ze zijn tijdelijk: 30 dagen nadat een taak op Klaar is gezet, worden ze automatisch verwijderd.
 
