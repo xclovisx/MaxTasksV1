@@ -200,6 +200,9 @@ export function TaakDialoog({ modus, isBeheerder, onSluit }: { modus: DialoogMod
         onPaste={(e) => {
           const plaatjes = [...e.clipboardData.files].filter((f) => f.type.startsWith('image/'));
           if (plaatjes.length === 0) return; // gewone tekst plakken werkt zoals altijd
+          // Excel en Word zetten bij tekst ook een plaatje van de selectie op het klembord: in een tekstveld wil je de tekst.
+          const inTekstveld = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement;
+          if (inTekstveld && e.clipboardData.types.includes('text/plain')) return;
           e.preventDefault();
           bijlagenRef.current?.voegToe(plaatjes);
         }}

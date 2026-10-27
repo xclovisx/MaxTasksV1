@@ -129,6 +129,25 @@ test('tekst plakken in de titel blijft gewoon tekst', async ({ page }) => {
   await expect(dialoog.getByRole('list', { name: 'Bijlagen' })).toHaveCount(0);
 });
 
+test('plakken met tekst én afbeelding in een tekstveld blijft tekst (Excel of Word)', async ({ page }) => {
+  const mw = await maakMedewerker();
+  await inloggen(page, mw.gebruikersnaam, mw.wachtwoord);
+  await page.waitForURL(/\/bord\//);
+  await page.getByRole('button', { name: 'Nieuwe taak' }).click();
+  const dialoog = page.getByRole('dialog', { name: 'Nieuwe taak' });
+  const titel = dialoog.getByLabel('Titel');
+  await titel.focus();
+  const nietGeannuleerd = await titel.evaluate((el, b64) => {
+    const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+    const dt = new DataTransfer();
+    dt.setData('text/plain', 'cellen');
+    dt.items.add(new File([bytes], 'image.png', { type: 'image/png' }));
+    return el.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
+  }, PNG_B64);
+  expect(nietGeannuleerd).toBe(true);
+  await expect(dialoog.getByRole('list', { name: 'Bijlagen' })).toHaveCount(0);
+});
+
 test('na een mislukte upload van een nieuwe taak gaan alleen de bijlagen opnieuw, zonder tweede taak', async ({ page }) => {
   const mw = await maakMedewerker();
   await inloggen(page, mw.gebruikersnaam, mw.wachtwoord);
