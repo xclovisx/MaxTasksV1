@@ -2,6 +2,7 @@ import { expect, type Page } from '@playwright/test';
 import { hashWachtwoord } from '../../src/lib/auth/wachtwoord';
 import { maakSql } from '../../src/lib/db/client';
 import { vandaagInAmsterdam } from '../../src/lib/domein/datums';
+import { codePng } from '../codes-helper';
 import { E2E_DATABASE_URL } from './gegevens';
 
 export async function inloggen(page: Page, gebruikersnaam: string, wachtwoord: string) {
@@ -67,3 +68,7 @@ export async function maakTaakMetStops(titel: string, stops: { naam: string; adr
 /** Een geldige PNG van 1×1 pixel. */
 export const PNG_B64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
 export const png = (name: string) => ({ name, mimeType: 'image/png', buffer: Buffer.from(PNG_B64, 'base64') });
+
+export async function qrPng(name: string, tekst: string) {
+  return { name, mimeType: 'image/png', buffer: Buffer.from(await codePng('QRCode', tekst, 8)) };
+}

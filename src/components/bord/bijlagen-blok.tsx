@@ -6,7 +6,7 @@ import { verwijderBijlageActie } from '@/app/(app)/bord/acties';
 import { BestandIcoon, KruisIcoon, PaperclipIcoon } from '@/components/iconen';
 import { Melding } from '@/components/ui';
 import { FotoWeergave } from './foto-weergave';
-import { type Bijlage, formatGrootte, MAX_BIJLAGEN_PER_TAAK } from '@/lib/domein/bijlagen';
+import { type Bijlage, formatGrootte, isQr, MAX_BIJLAGEN_PER_TAAK } from '@/lib/domein/bijlagen';
 import { bereidVoor, uploadBijlage, type UploadResultaat } from '@/lib/web/bijlage-upload';
 
 type Lokaal = {
@@ -144,6 +144,11 @@ export function BijlagenBlok({ taakId, begin, handvat }: { taakId: string | null
                     </span>
                   ) : (
                     <img src={`/api/bijlagen/${i.bijlage.id}`} alt="" loading="lazy" className="size-full object-cover" />
+                  )}
+                  {i.bijlage.code && (
+                    <span className="absolute bottom-1 left-1 rounded bg-black/70 px-1.5 py-px text-[10px] font-semibold text-white">
+                      {isQr(i.bijlage.code.formaat) ? 'QR' : 'Streepjescode'}
+                    </span>
                   )}
                 </a>
                 <button

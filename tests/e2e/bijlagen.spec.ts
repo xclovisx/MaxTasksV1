@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { inloggen, maakMedewerker, PNG_B64, png } from './helpers';
+import { inloggen, maakMedewerker, PNG_B64, png, qrPng } from './helpers';
 
 test('bijlage toevoegen aan een bestaande taak, bekijken en verwijderen', async ({ page }) => {
   const mw = await maakMedewerker();
@@ -242,4 +242,35 @@ test('een foto opent groot in het venster, met bladeren, en Esc sluit alleen de 
   await weergave.getByRole('button', { name: 'Sluiten' }).click();
   await expect(weergave).toBeHidden();
   await expect(dialoog).toBeVisible();
+});
+
+test('een QR-code in een foto wordt herkend en scherp getoond, met de foto als alternatief', async ({ page }) => {
+  const mw = await maakMedewerker();
+  await inloggen(page, mw.gebruikersnaam, mw.wachtwoord);
+  await page.waitForURL(/\/bord\//);
+  await page.getByRole('button', { name: 'Nieuwe taak' }).click();
+  const nieuw = page.getByRole('dialog', { name: 'Nieuwe taak' });
+  await nieuw.getByLabel('Titel').fill('e2e-qr-herkennen');
+  await nieuw.getByLabel('Foto of bestand toevoegen').setInputFiles([await qrPng('ophalen.png', 'OPHAAL-E2E-42'), png('gewoon.png')]);
+  await expect(nieuw.getByText('gewoon.jpg')).toBeVisible();
+  await nieuw.getByRole('button', { name: 'Opslaan' }).click();
+  await expect(nieuw).toBeHidden();
+
+  await page.locator('[data-taak]', { hasText: 'e2e-qr-herkennen' }).click();
+  const dialoog = page.getByRole('dialog', { name: 'Taak bewerken' });
+  const tegel = dialoog.getByRole('listitem').filter({ has: page.getByRole('link', { name: 'ophalen.jpg' }) });
+  await expect(tegel.getByText('QR', { exact: true })).toBeVisible();
+
+  await dialoog.getByRole('link', { name: 'ophalen.jpg' }).click();
+  const weergave = page.getByRole('dialog', { name: 'Foto bekijken' });
+  await expect(weergave.getByRole('img', { name: 'QR-code' })).toBeVisible();
+  await expect(weergave.getByText('OPHAAL-E2E-42')).toBeVisible();
+  await weergave.getByRole('button', { name: 'Originele foto' }).click();
+  await expect(weergave.getByRole('img', { name: 'ophalen.jpg' })).toBeVisible();
+  await weergave.getByRole('button', { name: 'Code' }).click();
+  await expect(weergave.getByRole('img', { name: 'QR-code' })).toBeVisible();
+
+  await weergave.getByRole('button', { name: 'Volgende foto' }).click();
+  await expect(weergave.getByRole('img', { name: 'gewoon.jpg' })).toBeVisible();
+  await expect(weergave.getByRole('button', { name: 'Originele foto' })).toHaveCount(0);
 });
