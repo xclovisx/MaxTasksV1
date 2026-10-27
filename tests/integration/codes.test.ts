@@ -15,8 +15,7 @@ describe('codes', () => {
     expect(await herkenCode(new Uint8Array())).toBeNull();
   });
 
-  it('kiest de grootste code als er meerdere zijn', async () => {
-    // Twee losse PNG's kunnen we niet samenvoegen zonder canvas; de keuze zelf is unit-getest (grootsteCode).
+  it('herkent ook een grote QR-code', async () => {
     expect(await herkenCode(await codePng('QRCode', 'groot', 10))).toEqual({ formaat: 'QRCode', tekst: 'groot' });
   });
 

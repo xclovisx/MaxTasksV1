@@ -41,11 +41,20 @@ export type UploadResultaat = { ok: true; bijlage: Bijlage } | { ok: false; fout
 const GEEN_VERBINDING = 'Geen verbinding. Probeer het opnieuw.';
 const AFGEBROKEN = 'Uploaden afgebroken. Probeer het opnieuw.';
 
+function alsCode(c: unknown): Bijlage['code'] | undefined {
+  if (c === null) return null;
+  if (typeof c !== 'object') return undefined;
+  const d = c as Record<string, unknown>;
+  return typeof d.formaat === 'string' && typeof d.tekst === 'string' ? (c as Bijlage['code']) : undefined;
+}
+
 function alsBijlage(data: unknown): Bijlage | null {
   if (typeof data !== 'object' || data === null) return null;
   const d = data as Record<string, unknown>;
   if (typeof d.id !== 'string' || typeof d.naam !== 'string' || typeof d.type !== 'string' || typeof d.grootte !== 'number') return null;
-  return data as Bijlage;
+  const code = alsCode(d.code ?? null);
+  if (code === undefined) return null;
+  return { id: d.id, naam: d.naam, type: d.type as Bijlage['type'], grootte: d.grootte, code };
 }
 
 /** XHR in plaats van fetch: alleen zo is de voortgang van een upload te volgen. De belofte wordt altijd afgehandeld, nooit afgewezen. */

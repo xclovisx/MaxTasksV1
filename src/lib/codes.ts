@@ -39,5 +39,7 @@ export async function tekenCode(code: Code): Promise<string> {
   await laadZxing();
   const w = await writeBarcode(code.tekst, { format: code.formaat });
   if (w.error) throw new Error(`Code tekenen mislukt: ${w.error}`);
-  return w.svg.replace(/<svg width="(\d+)" height="(\d+)"/, '<svg width="$1" height="$2" viewBox="0 0 $1 $2"');
+  const svg = w.svg.replace(/<svg width="(\d+)" height="(\d+)"/, '<svg width="$1" height="$2" viewBox="0 0 $1 $2"');
+  if (svg === w.svg) throw new Error('Code tekenen mislukt: SVG heeft geen verwachte width/height');
+  return svg;
 }

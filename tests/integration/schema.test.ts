@@ -108,4 +108,16 @@ describe('bijlagen in taken_weergave', () => {
     await expect(db()`insert into bijlagen (taak_id, naam, type, grootte) values (${taakId}, 'x.gif', 'image/gif', 1)`).rejects.toThrow();
     await expect(db()`insert into bijlagen (taak_id, naam, type, grootte) values (${taakId}, 'x.pdf', 'application/pdf', 10485761)`).rejects.toThrow();
   });
+
+  it('neemt de code mee en eist dat formaat en tekst samen gaan', async () => {
+    const { taakId } = await maakBordMetTaak();
+    await db()`insert into bijlagen (taak_id, naam, type, grootte, code_formaat, code_tekst)
+      values (${taakId}, 'qr.jpg', 'image/jpeg', 10, 'QRCode', 'ABC'), (${taakId}, 'b.jpg', 'image/jpeg', 10, null, null)`;
+    const [r] = await db()<{ bijlagen: { naam: string; code: unknown }[] }[]>`select bijlagen from taken_weergave where id = ${taakId}`;
+    expect(r.bijlagen.find((b) => b.naam === 'qr.jpg')?.code).toEqual({ formaat: 'QRCode', tekst: 'ABC' });
+    expect(r.bijlagen.find((b) => b.naam === 'b.jpg')?.code).toBeNull();
+    await expect(db()`insert into bijlagen (taak_id, naam, type, grootte, code_formaat) values (${taakId}, 'x.jpg', 'image/jpeg', 1, 'QRCode')`)
+      .rejects.toThrow(/bijlagen_code_compleet/);
+  });
 });
+

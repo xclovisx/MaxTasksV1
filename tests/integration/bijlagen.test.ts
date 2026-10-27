@@ -9,6 +9,7 @@ import { haalTaak, maakTaak, taakHistorie, verwijderTaak } from '../../src/lib/d
 import { MAX_BIJLAGE_BYTES } from '../../src/lib/domein/bijlagen';
 import { NietGevonden, OpslagOntbreekt, Ongeldig, TeGroot, TeVeelBijlagen } from '../../src/lib/fouten';
 import { OPSLAG_MARKER } from '../../src/lib/opslag';
+import { codePng } from '../codes-helper';
 import { leegDatabase, maakBord, maakMedewerkerCtx } from './helpers';
 
 export const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3, 4]);
@@ -44,10 +45,29 @@ describe('bijlagen', () => {
     expect(b).toEqual({ id: expect.any(String), naam: 'qr.png', type: 'image/png', grootte: PNG.length, code: null });
     expect(await bestanden()).toEqual([b.id]);
     expect(new Uint8Array(await readFile(path.join(map, b.id)))).toEqual(PNG);
-    // taken_weergave levert nog geen code; dat komt met de database-kolom in Task 2.
-    expect((await haalTaak(taakId)).bijlagen).toEqual([{ ...b, code: undefined }]);
+    expect((await haalTaak(taakId)).bijlagen).toEqual([b]);
     expect((await taakHistorie(taakId))[0]).toMatchObject({ naam: 'Piet', wijzigingen: { bijlage: { oud: null, nieuw: 'qr.png' } } });
     expect(await haalBijlage(b.id)).toEqual({ naam: 'qr.png', type: 'image/png', pad: path.join(map, b.id) });
+  });
+
+  it('herkent een code in een foto en bewaart die bij de bijlage', async () => {
+    const b = await voegBijlageToe(piet, taakId, { naam: 'qr.png', inhoud: await codePng('QRCode', 'OPHAAL-42') });
+    expect(b.code).toEqual({ formaat: 'QRCode', tekst: 'OPHAAL-42' });
+    expect((await haalTaak(taakId)).bijlagen[0].code).toEqual({ formaat: 'QRCode', tekst: 'OPHAAL-42' });
+  });
+
+  it('een foto zonder code en een PDF hebben code null; herkennen wordt bij een PDF niet geprobeerd', async () => {
+    let aangeroepen = 0;
+    const herken = async () => { aangeroepen++; return null; };
+    expect((await voegBijlageToe(piet, taakId, { naam: 'qr.png', inhoud: PNG }, herken)).code).toBeNull();
+    expect((await voegBijlageToe(piet, taakId, { naam: 'x.pdf', inhoud: PDF }, herken)).code).toBeNull();
+    expect(aangeroepen).toBe(1);
+  });
+
+  it('een herkenning die gooit, blokkeert de upload niet', async () => {
+    const b = await voegBijlageToe(piet, taakId, { naam: 'qr.png', inhoud: PNG }, async () => { throw new Error('kapot'); });
+    expect(b.code).toBeNull();
+    expect(await bestanden()).toEqual([b.id]);
   });
 
   it('bepaalt het type uit de inhoud, niet uit de naam', async () => {

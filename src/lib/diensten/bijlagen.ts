@@ -4,8 +4,9 @@ import path from 'node:path';
 import type { Context } from '../context';
 import { db, transactie, type Tx } from '../db/client';
 import { meldWijziging } from '../db/gebeurtenissen';
+import { herkenCode } from '../codes';
 import {
-  bepaalType, type Bijlage, type BijlageType, MAX_BIJLAGE_BYTES, MAX_BIJLAGEN_PER_TAAK, schoonNaam,
+  bepaalType, type Bijlage, type BijlageType, type Code, MAX_BIJLAGE_BYTES, MAX_BIJLAGEN_PER_TAAK, schoonNaam,
 } from '../domein/bijlagen';
 import { isUuid } from '../domein/validatie';
 import { NietGevonden, Ongeldig, TeGroot, TeVeelBijlagen } from '../fouten';
@@ -20,13 +21,24 @@ async function logBijlage(tx: Tx, taakId: string, gebruikerId: string, oud: stri
 }
 
 /** Schrijft eerst het bestand (via .deel) en legt dan de rij vast; mislukt dat, dan gaat het bestand weer weg. */
-export async function voegBijlageToe(ctx: Context, taakId: string, invoer: { naam: string; inhoud: Uint8Array }): Promise<Bijlage> {
+export async function voegBijlageToe(
+  ctx: Context, taakId: string, invoer: { naam: string; inhoud: Uint8Array },
+  herken: (b: Uint8Array) => Promise<Code | null> = herkenCode,
+): Promise<Bijlage> {
   if (!isUuid(taakId)) throw new NietGevonden(TAAK_NIET_GEVONDEN);
   if (invoer.inhoud.length === 0) throw new Ongeldig('Het bestand is leeg.');
   if (invoer.inhoud.length > MAX_BIJLAGE_BYTES) throw new TeGroot('Te groot (max 10 MB).');
   const type = bepaalType(invoer.inhoud);
   if (!type) throw new Ongeldig("Dit bestandstype kan niet (alleen foto's en PDF's).");
   const naam = schoonNaam(invoer.naam);
+  let code: Code | null = null;
+  if (type !== 'application/pdf') {
+    try {
+      code = await herken(invoer.inhoud);
+    } catch (e) {
+      console.error('[bijlagen] code herkennen mislukt', e); // de upload gaat gewoon door
+    }
+  }
   const map = bijlagenMap();
   await vereisOpslag(map);
 
@@ -46,8 +58,8 @@ export async function voegBijlageToe(ctx: Context, taakId: string, invoer: { naa
       const [{ aantal }] = await tx<{ aantal: number }[]>`select count(*)::int as aantal from bijlagen where taak_id = ${taakId}`;
       if (aantal >= MAX_BIJLAGEN_PER_TAAK) throw new TeVeelBijlagen(`Maximaal ${MAX_BIJLAGEN_PER_TAAK} bijlagen per taak.`);
       await tx`
-        insert into bijlagen (id, taak_id, naam, type, grootte, aangemaakt_door)
-        values (${id}, ${taakId}, ${naam}, ${type}, ${invoer.inhoud.length}, ${ctx.gebruikerId})`;
+        insert into bijlagen (id, taak_id, naam, type, grootte, aangemaakt_door, code_formaat, code_tekst)
+        values (${id}, ${taakId}, ${naam}, ${type}, ${invoer.inhoud.length}, ${ctx.gebruikerId}, ${code?.formaat ?? null}, ${code?.tekst ?? null})`;
       // Een reekstaak met een bijlage geldt als afwijkend, zodat het wijzigen of stoppen van de reeks hem niet weggooit.
       await tx`update taken set afwijkend = (herhaling_id is not null) where id = ${taakId}`;
       await logBijlage(tx, taakId, ctx.gebruikerId, null, naam);
@@ -57,7 +69,7 @@ export async function voegBijlageToe(ctx: Context, taakId: string, invoer: { naa
     await rm(doel, { force: true });
     throw e;
   }
-  return { id, naam, type, grootte: invoer.inhoud.length, code: null };
+  return { id, naam, type, grootte: invoer.inhoud.length, code };
 }
 
 export async function verwijderBijlage(ctx: Context, id: string): Promise<void> {
@@ -80,4 +92,12 @@ export async function haalBijlage(id: string): Promise<{ naam: string; type: Bij
   const [b] = await db()<{ naam: string; type: BijlageType }[]>`select naam, type from bijlagen where id = ${id}`;
   if (!b) throw new NietGevonden(BIJLAGE_NIET_GEVONDEN);
   return { naam: b.naam, type: b.type, pad: path.join(bijlagenMap(), id) };
+}
+
+export async function haalCode(id: string): Promise<Code> {
+  if (!isUuid(id)) throw new NietGevonden(BIJLAGE_NIET_GEVONDEN);
+  const [b] = await db()<{ codeFormaat: Code['formaat'] | null; codeTekst: string | null }[]>`
+    select code_formaat, code_tekst from bijlagen where id = ${id}`;
+  if (!b?.codeFormaat || !b.codeTekst) throw new NietGevonden('Geen code bij deze bijlage');
+  return { formaat: b.codeFormaat, tekst: b.codeTekst };
 }

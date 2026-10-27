@@ -4,7 +4,8 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { SessieGebruiker } from '../../src/lib/auth/sessies';
 import { maakTaak } from '../../src/lib/diensten/taken';
-import { verwerkDownload, verwerkUpload, zelfdeHerkomst } from '../../src/lib/web/bijlagen-http';
+import { verwerkCode, verwerkDownload, verwerkUpload, zelfdeHerkomst } from '../../src/lib/web/bijlagen-http';
+import { codePng } from '../codes-helper';
 import { leegDatabase, maakBord, maakMedewerkerCtx } from './helpers';
 
 const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3, 4]);
@@ -119,5 +120,26 @@ describe('download', () => {
     expect((await verwerkDownload(piet, 'onzin')).status).toBe(404);
     await unlink(path.join(map, up.id));
     expect((await verwerkDownload(piet, up.id)).status).toBe(404);
+  });
+});
+
+describe('code', () => {
+  it('geeft de nagemaakte code als SVG met veilige headers', async () => {
+    const up = await (await verwerkUpload(uploadVerzoek(new File([await codePng('QRCode', 'OPHAAL-42')], 'qr.png')), piet, taakId, APP)).json();
+    expect(up.code).toEqual({ formaat: 'QRCode', tekst: 'OPHAAL-42' });
+    const res = await verwerkCode(piet, up.id);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toBe('image/svg+xml');
+    expect(res.headers.get('x-content-type-options')).toBe('nosniff');
+    expect(res.headers.get('content-security-policy')).toBe("default-src 'none'; style-src 'unsafe-inline'");
+    expect(res.headers.get('cache-control')).toBe('private, max-age=3600');
+    expect(await res.text()).toMatch(/<svg[^>]*viewBox/);
+  });
+
+  it('401 zonder sessie, 404 zonder code of bij een onbekende bijlage', async () => {
+    const up = await (await verwerkUpload(uploadVerzoek(new File([PNG], 'gewoon.png')), piet, taakId, APP)).json();
+    expect((await verwerkCode(null, up.id)).status).toBe(401);
+    expect((await verwerkCode(piet, up.id)).status).toBe(404);
+    expect((await verwerkCode(piet, 'onzin')).status).toBe(404);
   });
 });

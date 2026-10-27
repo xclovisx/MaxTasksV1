@@ -2,7 +2,8 @@ import { createReadStream } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import { Readable } from 'node:stream';
 import type { SessieGebruiker } from '../auth/sessies';
-import { haalBijlage, voegBijlageToe } from '../diensten/bijlagen';
+import { tekenCode } from '../codes';
+import { haalBijlage, haalCode, voegBijlageToe } from '../diensten/bijlagen';
 import { MAX_BIJLAGE_BYTES } from '../domein/bijlagen';
 import { Fout, NietGevonden, OpslagOntbreekt, TeGroot, TeVeelBijlagen } from '../fouten';
 
@@ -113,6 +114,26 @@ export async function verwerkDownload(gebruiker: SessieGebruiker | null, id: str
       'Content-Length': String(grootte),
       'Content-Disposition': `inline; filename*=UTF-8''${encodeURIComponent(b.naam)}`,
       'X-Content-Type-Options': 'nosniff',
+      'Cache-Control': 'private, max-age=3600',
+    },
+  });
+}
+
+export async function verwerkCode(gebruiker: SessieGebruiker | null, id: string): Promise<Response> {
+  if (!gebruiker) return fout(401, 'Niet ingelogd');
+  let code: Awaited<ReturnType<typeof haalCode>>;
+  try {
+    code = await haalCode(id);
+  } catch (e) {
+    if (e instanceof NietGevonden) return fout(404, e.message);
+    throw e;
+  }
+  const svg = await tekenCode(code);
+  return new Response(svg, {
+    headers: {
+      'Content-Type': 'image/svg+xml',
+      'X-Content-Type-Options': 'nosniff',
+      'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'",
       'Cache-Control': 'private, max-age=3600',
     },
   });
