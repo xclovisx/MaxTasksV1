@@ -95,6 +95,8 @@ export function TaakDialoog({ modus, isBeheerder, onSluit }: { modus: DialoogMod
   const isReeks = Boolean(taak?.herhalingId);
   const reeksBewerken = isReeks && bereik === 'reeks';
   const herhalingBewerkbaar = modus.soort === 'nieuw' || reeksBewerken;
+  // De taak bestaat al, alleen de bijlagen moeten nog: de velden staan dan vast, zodat een wijziging niet stilletjes verloren gaat.
+  const vast = nieuwId !== null;
 
   function regel() {
     if (herhalen === 'geen') return null;
@@ -131,7 +133,7 @@ export function TaakDialoog({ modus, isBeheerder, onSluit }: { modus: DialoogMod
           setNieuwId(id);
         }
         if (bijlagenRef.current && !(await bijlagenRef.current.uploadAlles(id))) {
-          setFout({ tekst: 'De taak is opgeslagen, maar niet alle bijlagen zijn geüpload. Klik op Opslaan om het opnieuw te proberen, of sluit het venster.', conflict: false });
+          setFout({ tekst: 'De taak is opgeslagen, maar niet alle bijlagen zijn geüpload. Klik op Opnieuw uploaden om het opnieuw te proberen, of sluit het venster.', conflict: false });
           router.refresh();
           return;
         }
@@ -253,18 +255,18 @@ export function TaakDialoog({ modus, isBeheerder, onSluit }: { modus: DialoogMod
 
         <form onSubmit={opslaan} className="space-y-4">
           <Veld label="Titel">
-            <Invoer ref={titelRef} value={titel} onChange={(e) => setTitel(e.target.value)} required maxLength={200} />
+            <Invoer ref={titelRef} value={titel} onChange={(e) => setTitel(e.target.value)} required maxLength={200} disabled={vast} />
           </Veld>
           <Veld label="Omschrijving (optioneel)">
-            <Tekstvak value={omschrijving} onChange={(e) => setOmschrijving(e.target.value)} rows={3} maxLength={2000} />
+            <Tekstvak value={omschrijving} onChange={(e) => setOmschrijving(e.target.value)} rows={3} maxLength={2000} disabled={vast} />
           </Veld>
           <BijlagenBlok taakId={taak?.id ?? nieuwId} begin={taak?.bijlagen ?? []} handvat={bijlagenRef} />
           <div className="grid grid-cols-2 gap-3">
             <Veld label="Dag">
-              <Invoer type="date" value={datum} onChange={(e) => setDatum(e.target.value)} required disabled={reeksBewerken} />
+              <Invoer type="date" value={datum} onChange={(e) => setDatum(e.target.value)} required disabled={reeksBewerken || vast} />
             </Veld>
             <Veld label="Tijd (optioneel)">
-              <Invoer type="time" value={tijd} onChange={(e) => setTijd(e.target.value)} />
+              <Invoer type="time" value={tijd} onChange={(e) => setTijd(e.target.value)} disabled={vast} />
             </Veld>
           </div>
           {afwezig && <Melding soort="info">{afwezig}</Melding>}
@@ -276,6 +278,7 @@ export function TaakDialoog({ modus, isBeheerder, onSluit }: { modus: DialoogMod
                   key={p}
                   type="button"
                   aria-pressed={prioriteit === p}
+                  disabled={vast}
                   onClick={() => setPrioriteit(p)}
                   className={cn(
                     'h-8 rounded-full border px-3 text-xs font-medium transition-colors',
@@ -287,10 +290,10 @@ export function TaakDialoog({ modus, isBeheerder, onSluit }: { modus: DialoogMod
               ))}
             </div>
           </div>
-          <StopsEditor stops={stops} onChange={setStops} opgeslagen={locaties.alle} vaakGebruikt={locaties.vaak} />
+          <StopsEditor stops={stops} onChange={setStops} opgeslagen={locaties.alle} vaakGebruikt={locaties.vaak} disabled={vast} />
           <div className="space-y-3">
             <Veld label="Herhalen">
-              <Keuzelijst value={herhalen} onChange={(e) => setHerhalen(e.target.value as Herhalen)} disabled={!herhalingBewerkbaar}>
+              <Keuzelijst value={herhalen} onChange={(e) => setHerhalen(e.target.value as Herhalen)} disabled={!herhalingBewerkbaar || vast}>
                 <option value="geen">Niet herhalen</option>
                 {(Object.keys(HERHALING_LABELS) as HerhalingType[]).map((h) => (
                   <option key={h} value={h}>{HERHALING_LABELS[h]}</option>
@@ -304,6 +307,7 @@ export function TaakDialoog({ modus, isBeheerder, onSluit }: { modus: DialoogMod
                     key={d}
                     type="button"
                     aria-pressed={weekdagen.includes(d)}
+                    disabled={vast}
                     onClick={() => setWeekdagen((w) => (w.includes(d) ? w.filter((x) => x !== d) : [...w, d].sort((a, b) => a - b)))}
                     className={cn(
                       'h-8 w-10 rounded-lg border text-xs',
@@ -317,7 +321,7 @@ export function TaakDialoog({ modus, isBeheerder, onSluit }: { modus: DialoogMod
             )}
             {herhalingBewerkbaar && herhalen === 'elke_x_weken' && (
               <Veld label="Om de hoeveel weken?">
-                <Invoer type="number" min={2} max={52} value={intervalWeken} onChange={(e) => setIntervalWeken(Number(e.target.value))} className="w-24" />
+                <Invoer type="number" min={2} max={52} value={intervalWeken} onChange={(e) => setIntervalWeken(Number(e.target.value))} className="w-24" disabled={vast} />
               </Veld>
             )}
           </div>
@@ -339,7 +343,7 @@ export function TaakDialoog({ modus, isBeheerder, onSluit }: { modus: DialoogMod
             {isReeks && <Knop variant="stil" onClick={stopDeReeks} disabled={bezig}>Reeks stoppen</Knop>}
             <div className="ml-auto flex gap-2">
               <Knop variant="secundair" onClick={onSluit}>Annuleren</Knop>
-              <Knop type="submit" disabled={bezig}>{bezig ? 'Bezig…' : 'Opslaan'}</Knop>
+              <Knop type="submit" disabled={bezig}>{bezig ? 'Bezig…' : vast ? 'Opnieuw uploaden' : 'Opslaan'}</Knop>
             </div>
           </div>
         </form>

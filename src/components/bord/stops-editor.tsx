@@ -11,11 +11,13 @@ export function StopsEditor({
   onChange,
   opgeslagen,
   vaakGebruikt,
+  disabled = false,
 }: {
   stops: StopInvoer[];
   onChange: (stops: StopInvoer[]) => void;
   opgeslagen: Locatie[];
   vaakGebruikt: Locatie[];
+  disabled?: boolean;
 }) {
   const vol = stops.length >= MAX_STOPS;
   const voegToe = (s: StopInvoer) => { if (!vol) onChange([...stops, s]); };
@@ -23,7 +25,7 @@ export function StopsEditor({
   const verwijder = (i: number) => onChange(stops.filter((_, j) => j !== i));
 
   return (
-    <fieldset className="space-y-2">
+    <fieldset className="space-y-2" disabled={disabled}>
       <legend className="mb-1.5 text-xs font-medium text-tekst-zacht">Locaties (optioneel, maximaal {MAX_STOPS})</legend>
       {stops.length > 0 && (
         <ol className="space-y-1.5">

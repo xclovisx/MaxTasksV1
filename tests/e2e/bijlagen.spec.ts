@@ -129,6 +129,41 @@ test('tekst plakken in de titel blijft gewoon tekst', async ({ page }) => {
   await expect(dialoog.getByRole('list', { name: 'Bijlagen' })).toHaveCount(0);
 });
 
+test('na een mislukte upload van een nieuwe taak gaan alleen de bijlagen opnieuw, zonder tweede taak', async ({ page }) => {
+  const mw = await maakMedewerker();
+  await inloggen(page, mw.gebruikersnaam, mw.wachtwoord);
+  await page.waitForURL(/\/bord\//);
+  await page.getByRole('button', { name: 'Nieuwe taak' }).click();
+  const dialoog = page.getByRole('dialog', { name: 'Nieuwe taak' });
+  const titel = dialoog.getByLabel('Titel');
+  await titel.fill('e2e-pakket-opnieuw');
+  await dialoog.getByLabel('Foto of bestand toevoegen').setInputFiles(png('x.png'));
+  await expect(dialoog.getByText('x.jpg')).toBeVisible();
+
+  await page.route('**/api/taken/*/bijlagen', (r) => r.fulfill({
+    status: 503, contentType: 'application/json', body: JSON.stringify({ fout: 'Opslagschijf niet gevonden, waarschuw de beheerder.' }),
+  }));
+  await dialoog.getByRole('button', { name: 'Opslaan' }).click();
+
+  await expect(dialoog.getByText('De taak is opgeslagen, maar niet alle bijlagen zijn geüpload.')).toBeVisible();
+  await expect(dialoog.getByText('Opslagschijf niet gevonden, waarschuw de beheerder.')).toBeVisible();
+  await expect(titel).toBeDisabled();
+  await expect(dialoog.getByLabel('Omschrijving (optioneel)')).toBeDisabled();
+  await expect(dialoog.getByLabel('Dag', { exact: true })).toBeDisabled();
+  await expect(dialoog.getByLabel('Tijd (optioneel)')).toBeDisabled();
+  await expect(dialoog.getByRole('button', { name: 'Hoog' })).toBeDisabled();
+  await expect(dialoog.getByLabel('Herhalen')).toBeDisabled();
+  await expect(dialoog.getByRole('button', { name: 'Opslaan', exact: true })).toHaveCount(0);
+
+  await page.unroute('**/api/taken/*/bijlagen');
+  await dialoog.getByRole('button', { name: 'Opnieuw uploaden' }).click();
+  await expect(dialoog).toBeHidden();
+
+  const kaarten = page.locator('[data-taak]', { hasText: 'e2e-pakket-opnieuw' });
+  await expect(kaarten).toHaveCount(1);
+  await expect(kaarten.getByTitle('Bijlagen')).toHaveText('1');
+});
+
 test('een bestand loslaten naast het taakvenster voegt het toe in plaats van weg te navigeren', async ({ page }) => {
   const mw = await maakMedewerker();
   await inloggen(page, mw.gebruikersnaam, mw.wachtwoord);
