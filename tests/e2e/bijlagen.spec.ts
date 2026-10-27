@@ -204,3 +204,42 @@ test('een bestand loslaten naast het taakvenster voegt het toe in plaats van weg
   expect(resultaat).toEqual({ overGeannuleerd: true, dropGeannuleerd: true });
   await expect(dialoog.getByText('sleep.jpg')).toBeVisible();
 });
+
+test('een foto opent groot in het venster, met bladeren, en Esc sluit alleen de foto', async ({ page, context }) => {
+  const mw = await maakMedewerker();
+  await inloggen(page, mw.gebruikersnaam, mw.wachtwoord);
+  await page.waitForURL(/\/bord\//);
+  await page.getByRole('button', { name: 'Nieuwe taak' }).click();
+  const nieuw = page.getByRole('dialog', { name: 'Nieuwe taak' });
+  await nieuw.getByLabel('Titel').fill('e2e-pakket-bekijken');
+  await nieuw.getByLabel('Foto of bestand toevoegen').setInputFiles([png('eerste.png'), png('tweede.png')]);
+  await expect(nieuw.getByText('tweede.jpg')).toBeVisible();
+  await nieuw.getByRole('button', { name: 'Opslaan' }).click();
+  await expect(nieuw).toBeHidden();
+
+  await page.locator('[data-taak]', { hasText: 'e2e-pakket-bekijken' }).click();
+  const dialoog = page.getByRole('dialog', { name: 'Taak bewerken' });
+  await dialoog.getByRole('link', { name: 'eerste.jpg' }).click();
+
+  const weergave = page.getByRole('dialog', { name: 'Foto bekijken' });
+  await expect(weergave).toBeVisible();
+  expect(context.pages()).toHaveLength(1);
+  await expect(weergave.getByText('1 / 2')).toBeVisible();
+  await expect(weergave.getByRole('img', { name: 'eerste.jpg' })).toBeVisible();
+
+  await weergave.getByRole('button', { name: 'Volgende foto' }).click();
+  await expect(weergave.getByRole('img', { name: 'tweede.jpg' })).toBeVisible();
+  await page.keyboard.press('ArrowLeft');
+  await expect(weergave.getByRole('img', { name: 'eerste.jpg' })).toBeVisible();
+  await expect(weergave.getByRole('link', { name: 'Downloaden' })).toHaveAttribute('download', 'eerste.jpg');
+
+  await page.keyboard.press('Escape');
+  await expect(weergave).toBeHidden();
+  await expect(dialoog).toBeVisible();
+
+  await dialoog.getByRole('link', { name: 'tweede.jpg' }).click();
+  await expect(weergave.getByText('2 / 2')).toBeVisible();
+  await weergave.getByRole('button', { name: 'Sluiten' }).click();
+  await expect(weergave).toBeHidden();
+  await expect(dialoog).toBeVisible();
+});

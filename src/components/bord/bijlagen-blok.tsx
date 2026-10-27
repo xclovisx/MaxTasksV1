@@ -5,6 +5,7 @@ import { type Ref, useEffect, useImperativeHandle, useRef, useState } from 'reac
 import { verwijderBijlageActie } from '@/app/(app)/bord/acties';
 import { BestandIcoon, KruisIcoon, PaperclipIcoon } from '@/components/iconen';
 import { Melding } from '@/components/ui';
+import { FotoWeergave } from './foto-weergave';
 import { type Bijlage, formatGrootte, MAX_BIJLAGEN_PER_TAAK } from '@/lib/domein/bijlagen';
 import { bereidVoor, uploadBijlage, type UploadResultaat } from '@/lib/web/bijlage-upload';
 
@@ -30,6 +31,7 @@ export function BijlagenBlok({ taakId, begin, handvat }: { taakId: string | null
   const router = useRouter();
   const [items, setItems] = useState<Item[]>(() => begin.map((bijlage) => ({ soort: 'opgeslagen', bijlage })));
   const [fout, setFout] = useState<string | null>(null);
+  const [bekijk, setBekijk] = useState<string | null>(null);
   // Async code leest de lijst via deze ref; hij wordt tegelijk met de state bijgewerkt.
   const itemsRef = useRef(items);
   const taakIdRef = useRef(taakId);
@@ -109,6 +111,9 @@ export function BijlagenBlok({ taakId, begin, handvat }: { taakId: string | null
     router.refresh();
   }
 
+  const fotos = items.flatMap((i) => (i.soort === 'opgeslagen' && i.bijlage.type !== 'application/pdf' ? [i.bijlage] : []));
+  const bekijkIndex = fotos.findIndex((f) => f.id === bekijk);
+
   return (
     <div>
       <span className="mb-1.5 block text-xs font-medium text-tekst-zacht">Bijlagen</span>
@@ -123,6 +128,12 @@ export function BijlagenBlok({ taakId, begin, handvat }: { taakId: string | null
                   rel="noopener"
                   aria-label={i.bijlage.naam}
                   title={i.bijlage.naam}
+                  onClick={(e) => {
+                    // Foto's binnen de app tonen; PDF's (en ctrl/cmd-klik) openen gewoon in een nieuw tabblad.
+                    if (i.bijlage.type === 'application/pdf' || e.ctrlKey || e.metaKey || e.shiftKey) return;
+                    e.preventDefault();
+                    setBekijk(i.bijlage.id);
+                  }}
                   className="block aspect-square overflow-hidden rounded-lg border border-rand bg-achtergrond"
                 >
                   {i.bijlage.type === 'application/pdf' ? (
@@ -192,6 +203,7 @@ export function BijlagenBlok({ taakId, begin, handvat }: { taakId: string | null
       </label>
       <p className="mt-1 hidden text-xs text-tekst-flauw sm:block">Of plak een screenshot met Ctrl+V, of sleep een bestand in dit venster.</p>
       {fout && <div className="mt-2"><Melding>{fout}</Melding></div>}
+      {bekijkIndex >= 0 && <FotoWeergave key={bekijk} fotos={fotos} begin={bekijkIndex} onSluit={() => setBekijk(null)} />}
     </div>
   );
 }
