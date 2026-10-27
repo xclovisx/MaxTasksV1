@@ -118,7 +118,7 @@ Zet het token als `NTFY_TOKEN=` in `.env` en voer `docker compose up -d` uit. Vo
 Zet `GOOGLE_MAPS_API_KEY=` in `.env` (zie "Google (adressen zoeken en route plannen)"), beperk de sleutel tot het IP van de server en voer `docker compose up -d` uit.
 
 ### Back-ups
-Elke nacht om 03:00 maakt de worker een back-up in het volume `backups`; de laatste 14 dagen blijven bewaard.
+Elke nacht om 03:00 maakt de worker een back-up (in het volume `backups`, of op de tweede schijf, zie hieronder); de laatste 14 dagen blijven bewaard. Mislukt een back-up, dan krijg je een ntfy-melding.
 ```bash
 docker compose exec worker npx tsx src/scripts/backup.ts                 # nu een back-up maken
 docker compose exec worker ls /backups                                   # overzicht
@@ -135,6 +135,26 @@ docker compose start app worker
 ```
 
 **Nieuwe server:** volg stap 1 t/m 3 (`docker compose up -d` draait de migraties en maakt de lege database), kopieer de dump naar de nieuwe server (bijv. met `scp`) en zet hem terug met bovenstaande opdrachten. Doe daarna stap 4 opnieuw: de ntfy-gebruikers en het token staan in het volume `ntfy-data` en zitten dus niet in de back-up.
+
+### Tweede schijf voor bijlagen en back-ups
+Bijlagen (foto's en PDF's bij taken) en de nachtelijke back-ups kunnen op een tweede schijf staan. Gaat de systeemschijf kapot, dan staat je back-up dan nog veilig.
+
+1. Koppel de schijf vast aan, bijvoorbeeld op `/mnt/opslag`. `nofail` zorgt dat de server ook zonder de schijf opstart:
+   ```bash
+   mkdir -p /mnt/opslag
+   echo "UUID=$(blkid -s UUID -o value /dev/sdb1) /mnt/opslag ext4 defaults,nofail 0 2" >> /etc/fstab
+   mount -a && findmnt /mnt/opslag
+   ```
+2. Draai `bash /opt/takenbord/install.sh` en geef bij de vraag een map op, bijvoorbeeld `/mnt/opslag/takenbord`. Het script maakt daarin `bijlagen/` en `backups/` aan, met een controlebestand `.takenbord-opslag`, en zet bestaande back-ups over.
+3. Ontbreekt de schijf later (niet aangekoppeld of kapot), dan:
+   - weigert het takenbord nieuwe bijlagen met "Opslagschijf niet gevonden";
+   - mislukt de back-up met een ntfy-melding;
+   - stopt install.sh met uitleg.
+
+   Er wordt dan nooit stilletjes naar de systeemschijf geschreven.
+4. Het oude back-upvolume blijft bestaan. Kijk of de back-ups in de nieuwe map staan (`ls /mnt/opslag/takenbord/backups`) en ruim het oude volume dan op met `docker volume rm takenbord_backups`.
+
+Bijlagen staan niet in de nachtelijke back-up. Ze zijn tijdelijk: 30 dagen nadat een taak op Klaar is gezet, worden ze automatisch verwijderd.
 
 ### Bijwerken
 Met het script: `bash /opt/takenbord/install.sh`. Handmatig: maak eerst een back-up (`docker compose exec worker npx tsx src/scripts/backup.ts`).

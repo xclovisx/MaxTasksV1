@@ -16,6 +16,7 @@ NAAM=""
 GEBRUIKERSNAAM=""
 WACHTWOORD=""
 FIREWALL_UIT=0
+OPSLAG_MARKER=".takenbord-opslag"
 
 # ---------- uitvoer ----------
 stap() {
@@ -71,6 +72,24 @@ zet_env_waarde() { # $1 = bestand, $2 = sleutel, $3 = waarde (vervangt of voegt 
     rm -f "$tmp"
     return 1
   fi
+}
+
+env_heeft_sleutel() { # $1 = bestand, $2 = sleutel; ook waar bij een lege waarde
+  [[ -f "$1" ]] && grep -q "^$2=" "$1"
+}
+
+opslag_pad_probleem() { # $1 = pad; leeg als het bruikbaar is
+  if [[ "$1" != /* || "$1" == / ]]; then
+    echo "Gebruik een volledig pad dat met / begint, bijv. /mnt/opslag/takenbord."
+  elif [[ ! "$1" =~ ^/[A-Za-z0-9._/-]+$ ]]; then
+    echo "Gebruik alleen letters, cijfers en . _ - / in het pad."
+  elif [[ ! -d "$(dirname "$1")" ]]; then
+    echo "De map $(dirname "$1") bestaat niet. Is de schijf aangekoppeld?"
+  fi
+}
+
+op_systeemschijf() { # $1 = bestaande map; waar als die op hetzelfde bestandssysteem staat als /
+  [[ "$(df --output=source "$1" | tail -1)" == "$(df --output=source / | tail -1)" ]]
 }
 
 bepaal_modus() { # $1 = map; geeft nieuw, hervatten, bijwerken of onleesbaar
@@ -334,6 +353,63 @@ schrijf_env() {
   gelukt "$env (alleen leesbaar voor jou)"
 }
 
+verhuis_backups() { # $1 = nieuwe back-upmap; kopieert eenmalig uit het oude volume, overschrijft niets
+  "${DOCKER[@]}" volume inspect takenbord_backups >/dev/null 2>&1 || return 0
+  info "Bestaande back-ups overzetten…"
+  # shellcheck disable=SC2016 # $f wordt in de container uitgewerkt
+  "${DOCKER[@]}" run --rm --user 1000:1000 --entrypoint sh -v takenbord_backups:/oud:ro -v "$1":/nieuw takenbord-worker \
+    -c 'for f in /oud/*.dump; do [ -e "$f" ] || continue; [ -e "/nieuw/${f##*/}" ] || cp "$f" /nieuw/; done'
+  gelukt "Back-ups overgezet (het oude volume takenbord_backups blijft bestaan; zie README)"
+}
+
+controleer_opslag() {
+  local env="$MAP/.env" map
+  [[ "$(lees_env_waarde "$env" OPSLAG_CONTROLE)" == 1 ]] || return 0
+  for map in "$(lees_env_waarde "$env" BIJLAGEN_OPSLAG)" "$(lees_env_waarde "$env" BACKUP_OPSLAG)"; do
+    [[ -f "$map/$OPSLAG_MARKER" ]] ||
+      stop_met_fout "Het controlebestand $map/$OPSLAG_MARKER ontbreekt. Is de opslagschijf aangekoppeld? Controleer met: df -h $map"
+  done
+}
+
+stel_opslag_in() {
+  local env="$MAP/.env" pad="" probleem antwoord
+  if env_heeft_sleutel "$env" OPSLAG_MAP; then
+    controleer_opslag
+    return
+  fi
+  stap "Opslag voor bijlagen en back-ups"
+  info "Heeft de server een tweede schijf? Bewaar bijlagen en back-ups daar, dan ben je niet alles kwijt als één schijf kapotgaat."
+  while true; do
+    vraag pad "Map voor bijlagen en back-ups (bijv. /mnt/opslag/takenbord; Enter = systeemschijf)"
+    pad="${pad%/}"
+    [[ -z "$pad" ]] && break
+    probleem="$(opslag_pad_probleem "$pad")"
+    if [[ -n "$probleem" ]]; then
+      waarschuw "$probleem"
+      continue
+    fi
+    if op_systeemschijf "$(dirname "$pad")"; then
+      vraag antwoord "Die map staat op de systeemschijf. Toch gebruiken? (j/n)"
+      [[ "${antwoord,,}" == j* ]] || continue
+    fi
+    break
+  done
+  if [[ -z "$pad" ]]; then
+    zet_env_waarde "$env" OPSLAG_MAP ""
+    gelukt "Bijlagen en back-ups blijven op de systeemschijf"
+    return
+  fi
+  "${SUDO[@]}" mkdir -p "$pad/bijlagen" "$pad/backups"
+  "${SUDO[@]}" touch "$pad/bijlagen/$OPSLAG_MARKER" "$pad/backups/$OPSLAG_MARKER"
+  "${SUDO[@]}" chown -R 1000:1000 "$pad/bijlagen" "$pad/backups"
+  verhuis_backups "$pad/backups"
+  zet_env_waarde "$env" BIJLAGEN_OPSLAG "$pad/bijlagen"
+  zet_env_waarde "$env" BACKUP_OPSLAG "$pad/backups"
+  zet_env_waarde "$env" OPSLAG_CONTROLE 1
+  zet_env_waarde "$env" OPSLAG_MAP "$pad" # als laatste: pas dan is deze stap af
+  gelukt "Bijlagen en back-ups komen in $pad"
+}
+
 start_stack() {
   stap "Takenbord bouwen en starten (dit duurt een paar minuten)"
   dc up -d --build
@@ -409,23 +485,31 @@ stel_ntfy_in() {
 
 werk_bij() {
   kies_docker
-  stap "Controleren op lokale wijzigingen"
-  local wijzigingen
-  wijzigingen="$(git -C "$MAP" status --porcelain)" ||
-    stop_met_fout "Kon niet bepalen of er lokale wijzigingen zijn in $MAP (git status mislukte). Controleer of je de eigenaar van de map bent en of het een git-map is."
-  if [[ -n "$wijzigingen" ]]; then
-    stop_met_fout "Er zijn lokale wijzigingen in $MAP. Zet ze opzij (git -C $MAP stash) en draai het script opnieuw."
+  if [[ "${TAKENBORD_NA_PULL:-}" != 1 ]]; then
+    stap "Controleren op lokale wijzigingen"
+    local wijzigingen voor
+    wijzigingen="$(git -C "$MAP" status --porcelain)" ||
+      stop_met_fout "Kon niet bepalen of er lokale wijzigingen zijn in $MAP (git status mislukte). Controleer of je de eigenaar van de map bent en of het een git-map is."
+    if [[ -n "$wijzigingen" ]]; then
+      stop_met_fout "Er zijn lokale wijzigingen in $MAP. Zet ze opzij (git -C $MAP stash) en draai het script opnieuw."
+    fi
+    gelukt "Geen lokale wijzigingen"
+    stap "Back-up maken"
+    if dc exec -T worker npx tsx src/scripts/backup.ts; then
+      gelukt "Back-up gemaakt"
+    else
+      waarschuw "Back-up mislukt (draait de worker?); bijwerken gaat door."
+    fi
+    stap "Nieuwste versie ophalen"
+    voor="$(git -C "$MAP" rev-parse HEAD:install.sh)"
+    git -C "$MAP" pull --ff-only --quiet
+    gelukt "Bijgewerkt naar $(git -C "$MAP" log -1 --format='%h %s')"
+    if [[ "$(git -C "$MAP" rev-parse HEAD:install.sh)" != "$voor" ]]; then
+      info "Het installatiescript zelf is ook bijgewerkt; de nieuwe versie gaat verder."
+      exec env TAKENBORD_NA_PULL=1 bash "$MAP/install.sh"
+    fi
   fi
-  gelukt "Geen lokale wijzigingen"
-  stap "Back-up maken"
-  if dc exec -T worker npx tsx src/scripts/backup.ts; then
-    gelukt "Back-up gemaakt"
-  else
-    waarschuw "Back-up mislukt (draait de worker?); bijwerken gaat door."
-  fi
-  stap "Nieuwste versie ophalen"
-  git -C "$MAP" pull --ff-only --quiet
-  gelukt "Bijgewerkt naar $(git -C "$MAP" log -1 --format='%h %s')"
+  stel_opslag_in
   start_stack
   "${DOCKER[@]}" image prune -f >/dev/null
   wacht_op_site
@@ -440,7 +524,7 @@ controleer_oude_data() {
 }
 
 samenvatting() { # $1 = modus; bij bijwerken een korte samenvatting zonder wachtwoorden
-  local env="$MAP/.env" domein
+  local env="$MAP/.env" domein opslag
   domein="$(lees_env_waarde "$env" DOMEIN)"
   printf '\n\033[1mKlaar!\033[0m\n'
   info "Takenbord:    https://$domein"
@@ -448,7 +532,12 @@ samenvatting() { # $1 = modus; bij bijwerken een korte samenvatting zonder wacht
     info "ntfy-server:  https://ntfy.$domein (gebruiker $(lees_env_waarde "$env" NTFY_GEBRUIKER), wachtwoord $(lees_env_waarde "$env" NTFY_WACHTWOORD))"
     info "              Voeg deze server toe in de ntfy-app en kies het onderwerp in Beheer → Instellingen → Meldingen."
   fi
-  info "Back-ups:     elke nacht om 03:00 (bekijken: docker compose -f $MAP/docker-compose.yml exec worker ls /backups)"
+  opslag="$(lees_env_waarde "$env" OPSLAG_MAP)"
+  if [[ -n "$opslag" ]]; then
+    info "Back-ups:     elke nacht om 03:00 in $opslag/backups; bijlagen in $opslag/bijlagen"
+  else
+    info "Back-ups:     elke nacht om 03:00 (bekijken: docker compose -f $MAP/docker-compose.yml exec worker ls /backups)"
+  fi
   info "Bijwerken:    draai dit script opnieuw: bash $MAP/install.sh"
   if [[ $FIREWALL_UIT -eq 1 ]]; then
     printf '\n'
@@ -488,6 +577,7 @@ hoofd() {
       controleer_oude_data
       controleer_dns
       schrijf_env
+      stel_opslag_in
       start_stack
       wacht_op_site
       maak_beheerder
@@ -496,6 +586,7 @@ hoofd() {
     hervatten)
       controleer_systeem
       installeer_docker
+      stel_opslag_in
       start_stack
       wacht_op_site
       maak_beheerder

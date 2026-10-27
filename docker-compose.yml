@@ -49,6 +49,10 @@ services:
       NTFY_URL: http://ntfy
       NTFY_PUBLIEKE_URL: https://ntfy.${DOMEIN}
       NTFY_TOKEN: ${NTFY_TOKEN:-}
+      BIJLAGEN_MAP: /bijlagen
+      OPSLAG_CONTROLE: ${OPSLAG_CONTROLE:-0}
+    volumes:
+      - ${BIJLAGEN_OPSLAG:-bijlagen}:/bijlagen
     depends_on:
       migreer: { condition: service_completed_successfully }
 
@@ -61,8 +65,14 @@ services:
     environment:
       DATABASE_URL: *database-url
       BACKUP_MAP: /backups
+      BIJLAGEN_MAP: /bijlagen
+      OPSLAG_CONTROLE: ${OPSLAG_CONTROLE:-0}
+      APP_URL: https://${DOMEIN:?Zet DOMEIN in .env}
+      NTFY_URL: http://ntfy
+      NTFY_TOKEN: ${NTFY_TOKEN:-}
     volumes:
-      - backups:/backups
+      - ${BACKUP_OPSLAG:-backups}:/backups
+      - ${BIJLAGEN_OPSLAG:-bijlagen}:/bijlagen
     depends_on:
       migreer: { condition: service_completed_successfully }
 
@@ -99,6 +109,7 @@ services:
 volumes:
   db-data:
   backups:
+  bijlagen:
   ntfy-data:
   caddy-data:
   caddy-config:

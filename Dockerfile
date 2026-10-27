@@ -17,6 +17,7 @@ FROM basis AS app
 ENV NODE_ENV=production HOSTNAME=0.0.0.0 PORT=3000
 COPY --from=bouw --chown=node:node /app/.next/standalone ./
 COPY --from=bouw --chown=node:node /app/.next/static ./.next/static
+RUN mkdir /bijlagen && chown node:node /bijlagen
 USER node
 EXPOSE 3000
 CMD ["node", "server.js"]
@@ -24,7 +25,7 @@ CMD ["node", "server.js"]
 # Worker, migraties en beheercommando's (tsx + pg_dump)
 FROM basis AS worker
 ENV NODE_ENV=production TZ=Europe/Amsterdam BACKUP_MAP=/backups
-RUN apk add --no-cache postgresql16-client tzdata && mkdir /backups && chown node:node /backups
+RUN apk add --no-cache postgresql16-client tzdata && mkdir /backups /bijlagen && chown node:node /backups /bijlagen
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev --no-audit --no-fund
 COPY tsconfig.json ./

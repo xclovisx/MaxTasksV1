@@ -167,6 +167,46 @@ controleer "systeem: Debian zonder versie (testing)" heeft_patroon "$(systeem_pr
 controleer "systeem: andere distributie" heeft_patroon "$(systeem_probleem linuxmint 21.3 x86_64)" "Alleen Ubuntu .* en Debian .*'linuxmint'"
 controleer "systeem: 32-bit ARM" heeft_patroon "$(systeem_probleem ubuntu 24.04 armv7l)" '64-bit'
 
+printf 'OPSLAG_MAP=
+' >"$tmp/env-opslag"
+controleer "env_heeft_sleutel: aanwezig met lege waarde" env_heeft_sleutel "$tmp/env-opslag" OPSLAG_MAP
+controleer "env_heeft_sleutel: afwezig" weiger env_heeft_sleutel "$tmp/env-opslag" BIJLAGEN_OPSLAG
+controleer "env_heeft_sleutel: geen bestand" weiger env_heeft_sleutel "$tmp/bestaat-niet" OPSLAG_MAP
+
+controleer "opslagpad: geldig" is_gelijk "$(opslag_pad_probleem "$tmp/opslag")" ""
+controleer "opslagpad: relatief" heeft_patroon "$(opslag_pad_probleem mnt/opslag)" 'volledig pad'
+controleer "opslagpad: rare tekens" heeft_patroon "$(opslag_pad_probleem '/mnt/mijn opslag')" 'alleen letters'
+controleer "opslagpad: bovenliggende map ontbreekt" heeft_patroon "$(opslag_pad_probleem /bestaat/niet/takenbord)" 'bestaat niet.*aangekoppeld'
+controleer "opslagpad: / zelf" heeft_patroon "$(opslag_pad_probleem /)" 'volledig pad'
+
+controleer "systeemschijf: / staat op de systeemschijf" op_systeemschijf /
+controleer "systeemschijf: de gekoppelde repo-map niet" weiger op_systeemschijf /repo
+
+# stel_opslag_in van begin tot eind, met vaste antwoorden en zonder Docker
+MAP="$tmp/map-opslag"
+mkdir -p "$MAP"
+printf 'DOMEIN=x.nl
+' >"$MAP/.env"
+antwoorden=("$tmp/schijf/takenbord" "j")
+vraag() { printf -v "$1" '%s' "${antwoorden[0]}"; antwoorden=("${antwoorden[@]:1}"); }
+mkdir -p "$tmp/schijf"
+DOCKER=(false)
+SUDO=()
+stel_opslag_in >/dev/null 2>&1
+controleer "opslag: .env bijgewerkt" is_gelijk "$(lees_env_waarde "$MAP/.env" BIJLAGEN_OPSLAG):$(lees_env_waarde "$MAP/.env" BACKUP_OPSLAG):$(lees_env_waarde "$MAP/.env" OPSLAG_CONTROLE):$(lees_env_waarde "$MAP/.env" OPSLAG_MAP)"   "$tmp/schijf/takenbord/bijlagen:$tmp/schijf/takenbord/backups:1:$tmp/schijf/takenbord"
+controleer "opslag: controlebestanden" test -f "$tmp/schijf/takenbord/bijlagen/.takenbord-opslag" -a -f "$tmp/schijf/takenbord/backups/.takenbord-opslag"
+controleer "opslag: eigenaar uid 1000" is_gelijk "$(stat -c %u "$tmp/schijf/takenbord/bijlagen")" 1000
+controleer "opslag: controle slaagt" controleer_opslag
+rm "$tmp/schijf/takenbord/bijlagen/.takenbord-opslag"
+uitvoer="$( (controleer_opslag) 2>&1 )"
+controleer "opslag: ontbrekend controlebestand stopt met uitleg" heeft_patroon "$uitvoer" 'aangekoppeld'
+antwoorden=("")
+printf 'DOMEIN=x.nl
+' >"$MAP/.env"
+stel_opslag_in >/dev/null 2>&1
+controleer "opslag: leeg antwoord = systeemschijf, vraag komt niet terug" bash -c "grep -qx 'OPSLAG_MAP=' '$MAP/.env' && ! grep -q OPSLAG_CONTROLE '$MAP/.env'"
+unset -f vraag
+
 rm -rf "$tmp"
 echo
 if [[ $fouten -eq 0 ]]; then
