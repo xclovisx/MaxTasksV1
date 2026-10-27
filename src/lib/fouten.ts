@@ -17,3 +17,11 @@ export class Conflict extends Fout {
     this.doorNaam = doorNaam;
   }
 }
+
+export class OpslagOntbreekt extends Fout {
+  constructor() { super('Opslagschijf niet gevonden, waarschuw de beheerder.'); }
+}
+
+export class TeGroot extends Fout {}
+
+export class TeVeelBijlagen extends Fout {}
