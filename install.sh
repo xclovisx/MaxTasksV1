@@ -92,6 +92,10 @@ op_systeemschijf() { # $1 = bestaande map; waar als die op hetzelfde bestandssys
   [[ "$(df --output=source "$1" | tail -1)" == "$(df --output=source / | tail -1)" ]]
 }
 
+te_controleren_map() { # $1 = pad; de map zelf als die al bestaat, anders de bovenliggende map
+  if [[ -d "$1" ]]; then echo "$1"; else dirname "$1"; fi
+}
+
 bepaal_modus() { # $1 = map; geeft nieuw, hervatten, bijwerken of onleesbaar
   local env="$1/.env"
   if [[ -e "$env" || -L "$env" ]] && { [[ ! -f "$env" ]] || [[ ! -r "$env" ]]; }; then
@@ -357,8 +361,9 @@ verhuis_backups() { # $1 = nieuwe back-upmap; kopieert eenmalig uit het oude vol
   "${DOCKER[@]}" volume inspect takenbord_backups >/dev/null 2>&1 || return 0
   info "Bestaande back-ups overzetten…"
   # shellcheck disable=SC2016 # $f wordt in de container uitgewerkt
-  "${DOCKER[@]}" run --rm --user 1000:1000 --entrypoint sh -v takenbord_backups:/oud:ro -v "$1":/nieuw takenbord-worker \
-    -c 'for f in /oud/*.dump; do [ -e "$f" ] || continue; [ -e "/nieuw/${f##*/}" ] || cp "$f" /nieuw/; done'
+  "${DOCKER[@]}" run --rm --pull never --user 1000:1000 --entrypoint sh -v takenbord_backups:/oud:ro -v "$1":/nieuw takenbord-worker \
+    -c 'for f in /oud/*.dump; do [ -e "$f" ] || continue; [ -e "/nieuw/${f##*/}" ] || cp "$f" /nieuw/ || exit 1; done' ||
+    stop_met_fout "De back-ups konden niet worden gekopieerd naar $1. Er is niets verloren: het oude volume takenbord_backups is niet aangeraakt. Controleer de schijf en draai het script opnieuw."
   gelukt "Back-ups overgezet (het oude volume takenbord_backups blijft bestaan; zie README)"
 }
 
@@ -388,7 +393,7 @@ stel_opslag_in() {
       waarschuw "$probleem"
       continue
     fi
-    if op_systeemschijf "$(dirname "$pad")"; then
+    if op_systeemschijf "$(te_controleren_map "$pad")"; then
       vraag antwoord "Die map staat op de systeemschijf. Toch gebruiken? (j/n)"
       [[ "${antwoord,,}" == j* ]] || continue
     fi
@@ -399,6 +404,8 @@ stel_opslag_in() {
     gelukt "Bijlagen en back-ups blijven op de systeemschijf"
     return
   fi
+  # bij bijwerken is controleer_systeem niet gedraaid; zonder root is sudo nodig op de tweede schijf
+  if [[ $EUID -ne 0 && ${#SUDO[@]} -eq 0 ]]; then SUDO=(sudo); fi
   "${SUDO[@]}" mkdir -p "$pad/bijlagen" "$pad/backups"
   "${SUDO[@]}" touch "$pad/bijlagen/$OPSLAG_MARKER" "$pad/backups/$OPSLAG_MARKER"
   "${SUDO[@]}" chown -R 1000:1000 "$pad/bijlagen" "$pad/backups"
