@@ -182,6 +182,13 @@ export function TaakDialoog({ modus, isBeheerder, onSluit }: { modus: DialoogMod
     <div
       className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 sm:items-center sm:p-4"
       onMouseDown={(e) => { if (e.target === e.currentTarget) onSluit(); }}
+      // Ook een bestand dat naast het venster valt, hoort een bijlage te worden: anders opent de browser het bestand en is het formulier weg.
+      onDragOver={(e) => { if (e.dataTransfer.types.includes('Files')) e.preventDefault(); }}
+      onDrop={(e) => {
+        if (e.dataTransfer.files.length === 0) return;
+        e.preventDefault();
+        bijlagenRef.current?.voegToe([...e.dataTransfer.files]);
+      }}
     >
       <div
         role="dialog"
@@ -193,12 +200,6 @@ export function TaakDialoog({ modus, isBeheerder, onSluit }: { modus: DialoogMod
           if (plaatjes.length === 0) return; // gewone tekst plakken werkt zoals altijd
           e.preventDefault();
           bijlagenRef.current?.voegToe(plaatjes);
-        }}
-        onDragOver={(e) => { if (e.dataTransfer.types.includes('Files')) e.preventDefault(); }}
-        onDrop={(e) => {
-          if (e.dataTransfer.files.length === 0) return;
-          e.preventDefault();
-          bijlagenRef.current?.voegToe([...e.dataTransfer.files]);
         }}
       >
         <div className="mb-4 flex items-center justify-between">

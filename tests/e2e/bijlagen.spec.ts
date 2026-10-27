@@ -128,3 +128,25 @@ test('tekst plakken in de titel blijft gewoon tekst', async ({ page }) => {
   });
   await expect(dialoog.getByRole('list', { name: 'Bijlagen' })).toHaveCount(0);
 });
+
+test('een bestand loslaten naast het taakvenster voegt het toe in plaats van weg te navigeren', async ({ page }) => {
+  const mw = await maakMedewerker();
+  await inloggen(page, mw.gebruikersnaam, mw.wachtwoord);
+  await page.waitForURL(/\/bord\//);
+  await page.getByRole('button', { name: 'Nieuwe taak' }).click();
+  const dialoog = page.getByRole('dialog', { name: 'Nieuwe taak' });
+  await dialoog.getByLabel('Titel').fill('e2e-pakket-slepen-naast');
+  const overlay = dialoog.locator('xpath=..');
+
+  const resultaat = await overlay.evaluate((el, b64) => {
+    const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+    const dt = new DataTransfer();
+    dt.items.add(new File([bytes], 'sleep.png', { type: 'image/png' }));
+    const over = el.dispatchEvent(new DragEvent('dragover', { dataTransfer: dt, bubbles: true, cancelable: true }));
+    const drop = el.dispatchEvent(new DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true }));
+    return { overGeannuleerd: !over, dropGeannuleerd: !drop };
+  }, PNG_B64);
+
+  expect(resultaat).toEqual({ overGeannuleerd: true, dropGeannuleerd: true });
+  await expect(dialoog.getByText('sleep.jpg')).toBeVisible();
+});
