@@ -25,3 +25,13 @@ export const PinIcoon = () => (
     <path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11z" /><circle cx="12" cy="10" r="2.5" />
   </svg>
 );
+export const PaperclipIcoon = () => (
+  <svg {...basis} width={13} height={13}>
+    <path d="M21 11.5l-8.6 8.6a5 5 0 0 1-7.1-7.1l8.6-8.6a3.3 3.3 0 0 1 4.7 4.7l-8.6 8.6a1.7 1.7 0 0 1-2.4-2.4l7.9-7.9" />
+  </svg>
+);
+export const BestandIcoon = () => (
+  <svg {...basis} width={22} height={22}>
+    <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" /><path d="M14 3v5h5" />
+  </svg>
+);

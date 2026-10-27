@@ -1,3 +1,5 @@
+import os from 'node:os';
+import path from 'node:path';
 import { defineConfig, devices } from '@playwright/test';
 import { E2E_DATABASE_URL, POORT } from './tests/e2e/gegevens';
 
@@ -14,6 +16,12 @@ export default defineConfig({
     url: `http://localhost:${POORT}/login`,
     reuseExistingServer: false,
     timeout: 180_000,
-    env: { DATABASE_URL: E2E_DATABASE_URL, APP_URL: `http://localhost:${POORT}`, GOOGLE_MAPS_API_KEY: '', NTFY_URL: '' },
+    env: {
+      DATABASE_URL: E2E_DATABASE_URL,
+      APP_URL: `http://localhost:${POORT}`,
+      GOOGLE_MAPS_API_KEY: '',
+      NTFY_URL: '',
+      BIJLAGEN_MAP: path.join(os.tmpdir(), 'takenbord-e2e-bijlagen'),
+    },
   },
 });

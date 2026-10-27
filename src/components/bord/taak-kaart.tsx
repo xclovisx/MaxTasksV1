@@ -1,4 +1,4 @@
-import { HerhaalIcoon, KlokIcoon, PinIcoon } from '@/components/iconen';
+import { HerhaalIcoon, KlokIcoon, PaperclipIcoon, PinIcoon } from '@/components/iconen';
 import { cn } from '@/lib/cn';
 import type { Taak } from '@/lib/diensten/taken';
 import { stopsSamenvatting } from '@/lib/domein/navigatie';
@@ -10,7 +10,7 @@ export function TaakKaartInhoud({ taak, toonBord = false }: { taak: Taak; toonBo
   const herhaling = herhalingKort(taak);
   const labels = taakLabels(taak);
   const plek = stopsSamenvatting(taak.stops);
-  const heeftMeta = Boolean(taak.tijd || plek || herhaling || taak.status !== 'open' || labels.length);
+  const heeftMeta = Boolean(taak.tijd || plek || herhaling || taak.status !== 'open' || labels.length || taak.bijlagen.length > 0);
   return (
     <div
       className={cn(
@@ -40,6 +40,9 @@ export function TaakKaartInhoud({ taak, toonBord = false }: { taak: Taak; toonBo
           {taak.tijd && <span className="inline-flex items-center gap-1"><KlokIcoon />{taak.tijd}</span>}
           {plek && <span className="inline-flex min-w-0 items-center gap-1"><PinIcoon /><span className="truncate">{plek}</span></span>}
           {herhaling && <span className="inline-flex items-center gap-1"><HerhaalIcoon />{herhaling}</span>}
+          {taak.bijlagen.length > 0 && (
+            <span className="inline-flex items-center gap-1" title="Bijlagen"><PaperclipIcoon />{taak.bijlagen.length}</span>
+          )}
           {taak.status !== 'open' && (
             <span className={cn('rounded px-1.5 py-px font-semibold', STATUS_PIL[taak.status])}>{STATUS_LABEL[taak.status]}</span>
           )}

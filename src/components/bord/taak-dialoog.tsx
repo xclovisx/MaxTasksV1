@@ -16,6 +16,7 @@ import { HERHALING_LABELS, type HerhalingType } from '@/lib/domein/herhaling';
 import { PRIORITEIT_LABEL, PRIORITEITEN, type Prioriteit, type Status, STATUS_LABEL, STATUSSEN } from '@/lib/domein/taak';
 import type { StopInvoer } from '@/lib/domein/validatie';
 import type { ActieResultaat } from '@/lib/web/actie';
+import { BijlagenBlok } from './bijlagen-blok';
 import { NavigatieBlok } from './navigatie-blok';
 import { PRIO_KNOP_AAN, STATUS_PIL } from './stijl';
 import { StopsEditor } from './stops-editor';
@@ -26,7 +27,7 @@ type Herhalen = 'geen' | HerhalingType;
 
 const VELDNAAM: Record<string, string> = {
   titel: 'titel', omschrijving: 'omschrijving', datum: 'dag', tijd: 'tijd', prioriteit: 'prioriteit', status: 'status',
-  stops: 'locaties',
+  stops: 'locaties', bijlage: 'bijlage',
 };
 
 const toon = (w: unknown) => (w === null || w === '' ? '–' : String(w));
@@ -225,6 +226,7 @@ export function TaakDialoog({ modus, isBeheerder, onSluit }: { modus: DialoogMod
           <Veld label="Omschrijving (optioneel)">
             <Tekstvak value={omschrijving} onChange={(e) => setOmschrijving(e.target.value)} rows={3} maxLength={2000} />
           </Veld>
+          {taak && <BijlagenBlok taakId={taak.id} begin={taak.bijlagen} />}
           <div className="grid grid-cols-2 gap-3">
             <Veld label="Dag">
               <Invoer type="date" value={datum} onChange={(e) => setDatum(e.target.value)} required disabled={reeksBewerken} />
