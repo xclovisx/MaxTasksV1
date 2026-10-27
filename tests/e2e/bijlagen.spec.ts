@@ -1,9 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { inloggen, maakMedewerker } from './helpers';
-
-/** Een geldige PNG van 1×1 pixel. */
-export const PNG_B64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
-export const png = (name: string) => ({ name, mimeType: 'image/png', buffer: Buffer.from(PNG_B64, 'base64') });
+import { inloggen, maakMedewerker, png } from './helpers';
 
 test('bijlage toevoegen aan een bestaande taak, bekijken en verwijderen', async ({ page }) => {
   const mw = await maakMedewerker();
@@ -49,4 +45,20 @@ test('een niet-toegestaan bestand geeft een melding bij die bijlage', async ({ p
   const dialoog = page.getByRole('dialog', { name: 'Taak bewerken' });
   await dialoog.getByLabel('Foto of bestand toevoegen').setInputFiles({ name: 'notities.txt', mimeType: 'text/plain', buffer: Buffer.from('hoi') });
   await expect(dialoog.getByText("Dit bestandstype kan niet (alleen foto's en PDF's).")).toBeVisible();
+});
+
+test('een afgekeurd bestand is weg te halen uit de lijst', async ({ page }) => {
+  const mw = await maakMedewerker();
+  await inloggen(page, mw.gebruikersnaam, mw.wachtwoord);
+  await page.waitForURL(/\/bord\//);
+  await page.getByRole('button', { name: 'Nieuwe taak' }).click();
+  const nieuw = page.getByRole('dialog', { name: 'Nieuwe taak' });
+  await nieuw.getByLabel('Titel').fill('e2e-pakket-weghalen');
+  await nieuw.getByRole('button', { name: 'Opslaan' }).click();
+  await page.locator('[data-taak]', { hasText: 'e2e-pakket-weghalen' }).click();
+  const dialoog = page.getByRole('dialog', { name: 'Taak bewerken' });
+  await dialoog.getByLabel('Foto of bestand toevoegen').setInputFiles({ name: 'notities.txt', mimeType: 'text/plain', buffer: Buffer.from('hoi') });
+  await expect(dialoog.getByText('notities.txt', { exact: true })).toBeVisible();
+  await dialoog.getByRole('button', { name: 'notities.txt weghalen' }).click();
+  await expect(dialoog.getByText('notities.txt', { exact: true })).toHaveCount(0);
 });

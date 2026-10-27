@@ -6,7 +6,7 @@ import { verwijderBijlageActie } from '@/app/(app)/bord/acties';
 import { BestandIcoon, KruisIcoon, PaperclipIcoon } from '@/components/iconen';
 import { Melding } from '@/components/ui';
 import { type Bijlage, formatGrootte, MAX_BIJLAGEN_PER_TAAK } from '@/lib/domein/bijlagen';
-import { bereidVoor, uploadBijlage } from '@/lib/web/bijlage-upload';
+import { bereidVoor, uploadBijlage, type UploadResultaat } from '@/lib/web/bijlage-upload';
 
 type Lokaal = {
   soort: 'lokaal';
@@ -47,7 +47,12 @@ export function BijlagenBlok({ taakId, begin, handvat }: { taakId: string | null
   async function upload(item: Lokaal, naarTaak: string): Promise<boolean> {
     if (!item.bestand) return true; // al afgekeurd en gemeld; telt niet als mislukte upload
     werkBij(item.sleutel, { status: 'bezig', voortgang: 0, fout: null });
-    const r = await uploadBijlage(naarTaak, item.bestand, item.naam, (v) => werkBij(item.sleutel, { voortgang: v }));
+    let r: UploadResultaat;
+    try {
+      r = await uploadBijlage(naarTaak, item.bestand, item.naam, (v) => werkBij(item.sleutel, { voortgang: v }));
+    } catch {
+      r = { ok: false, fout: 'Geen verbinding. Probeer het opnieuw.' };
+    }
     if (!r.ok) {
       werkBij(item.sleutel, { status: 'fout', fout: r.fout });
       return false;
@@ -58,17 +63,24 @@ export function BijlagenBlok({ taakId, begin, handvat }: { taakId: string | null
   }
 
   function voegToe(bestanden: File[]) {
-    voorbereiding.current = voorbereiding.current.then(async () => {
-      for (const f of bestanden) {
-        const bezet = itemsRef.current.filter((i) => i.soort === 'opgeslagen' || i.bestand !== null).length;
-        const v = bezet >= MAX_BIJLAGEN_PER_TAAK ? { fout: `Maximaal ${MAX_BIJLAGEN_PER_TAAK} bijlagen per taak.` } : await bereidVoor(f);
-        const item: Lokaal = 'fout' in v
-          ? { soort: 'lokaal', sleutel: ++teller.current, naam: f.name || 'bijlage', bestand: null, status: 'fout', voortgang: 0, fout: v.fout }
-          : { soort: 'lokaal', sleutel: ++teller.current, naam: v.naam, bestand: v.bestand, status: 'wacht', voortgang: 0, fout: null };
-        zet((l) => [...l, item]);
-        if (taakIdRef.current && item.bestand) await upload(item, taakIdRef.current);
-      }
-    });
+    voorbereiding.current = voorbereiding.current
+      .then(async () => {
+        for (const f of bestanden) {
+          try {
+            const bezet = itemsRef.current.filter((i) => i.soort === 'opgeslagen' || i.bestand !== null).length;
+            const v = bezet >= MAX_BIJLAGEN_PER_TAAK ? { fout: `Maximaal ${MAX_BIJLAGEN_PER_TAAK} bijlagen per taak.` } : await bereidVoor(f);
+            const item: Lokaal = 'fout' in v
+              ? { soort: 'lokaal', sleutel: ++teller.current, naam: f.name || 'bijlage', bestand: null, status: 'fout', voortgang: 0, fout: v.fout }
+              : { soort: 'lokaal', sleutel: ++teller.current, naam: v.naam, bestand: v.bestand, status: 'wacht', voortgang: 0, fout: null };
+            zet((l) => [...l, item]);
+            if (taakIdRef.current && item.bestand) await upload(item, taakIdRef.current);
+          } catch {
+            const item: Lokaal = { soort: 'lokaal', sleutel: ++teller.current, naam: f.name || 'bijlage', bestand: null, status: 'fout', voortgang: 0, fout: 'Er ging iets mis met dit bestand.' };
+            zet((l) => [...l, item]);
+          }
+        }
+      })
+      .catch(() => { /* de keten mag nooit afgewezen blijven */ });
   }
 
   async function uploadAlles(id: string): Promise<boolean> {
@@ -76,7 +88,10 @@ export function BijlagenBlok({ taakId, begin, handvat }: { taakId: string | null
     await voorbereiding.current;
     let alles = true;
     for (const i of itemsRef.current) {
-      if (i.soort === 'lokaal' && i.status !== 'bezig' && !(await upload(i, id))) alles = false;
+      if (i.soort !== 'lokaal' || i.status === 'bezig') continue;
+      let gelukt = false;
+      try { gelukt = await upload(i, id); } catch { /* telt als mislukt */ }
+      if (!gelukt) alles = false;
     }
     return alles;
   }
@@ -133,11 +148,18 @@ export function BijlagenBlok({ taakId, begin, handvat }: { taakId: string | null
                 {i.status === 'fout' ? (
                   <span role="alert" className="text-prio-nu">{i.fout}</span>
                 ) : (
-                  <span className="h-1.5 overflow-hidden rounded-full bg-rand" aria-label={`${i.naam} wordt geüpload`}>
+                  <span
+                    role="progressbar"
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={Math.round(i.voortgang * 100)}
+                    aria-label={`${i.naam} wordt geüpload`}
+                    className="h-1.5 overflow-hidden rounded-full bg-rand"
+                  >
                     <span className="block h-full bg-accent transition-[width]" style={{ width: `${Math.round(i.voortgang * 100)}%` }} />
                   </span>
                 )}
-                {i.status === 'fout' && (
+                {i.status !== 'bezig' && (
                   <button
                     type="button"
                     aria-label={`${i.naam} weghalen`}
@@ -152,7 +174,7 @@ export function BijlagenBlok({ taakId, begin, handvat }: { taakId: string | null
           )}
         </ul>
       )}
-      <label className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-rand px-3 text-sm text-tekst-zacht hover:bg-kaart">
+      <label className="inline-flex h-9 cursor-pointer focus-within:ring-2 focus-within:ring-accent items-center gap-1.5 rounded-lg border border-rand px-3 text-sm text-tekst-zacht hover:bg-kaart">
         <PaperclipIcoon />
         Foto of bestand toevoegen
         <input

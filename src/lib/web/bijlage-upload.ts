@@ -38,21 +38,43 @@ export async function bereidVoor(f: File, nu: Date = new Date()): Promise<{ best
 
 export type UploadResultaat = { ok: true; bijlage: Bijlage } | { ok: false; fout: string };
 
-/** XHR in plaats van fetch: alleen zo is de voortgang van een upload te volgen. */
+const GEEN_VERBINDING = 'Geen verbinding. Probeer het opnieuw.';
+const AFGEBROKEN = 'Uploaden afgebroken. Probeer het opnieuw.';
+
+function alsBijlage(data: unknown): Bijlage | null {
+  if (typeof data !== 'object' || data === null) return null;
+  const d = data as Record<string, unknown>;
+  if (typeof d.id !== 'string' || typeof d.naam !== 'string' || typeof d.type !== 'string' || typeof d.grootte !== 'number') return null;
+  return data as Bijlage;
+}
+
+/** XHR in plaats van fetch: alleen zo is de voortgang van een upload te volgen. De belofte wordt altijd afgehandeld, nooit afgewezen. */
 export function uploadBijlage(taakId: string, bestand: Blob, naam: string, opVoortgang: (fractie: number) => void): Promise<UploadResultaat> {
   return new Promise((klaar) => {
-    const fd = new FormData();
-    fd.append('bestand', bestand, naam);
-    const xhr = new XMLHttpRequest();
-    xhr.open('POST', `/api/taken/${encodeURIComponent(taakId)}/bijlagen`);
-    xhr.upload.onprogress = (e) => { if (e.lengthComputable) opVoortgang(e.loaded / e.total); };
-    xhr.onload = () => {
-      let data: unknown = null;
-      try { data = JSON.parse(xhr.responseText); } catch { /* geen JSON */ }
-      if (xhr.status === 201) klaar({ ok: true, bijlage: data as Bijlage });
-      else klaar({ ok: false, fout: (data as { fout?: string } | null)?.fout ?? `Uploaden mislukt (${xhr.status}).` });
-    };
-    xhr.onerror = () => klaar({ ok: false, fout: 'Geen verbinding. Probeer het opnieuw.' });
-    xhr.send(fd);
+    try {
+      const fd = new FormData();
+      fd.append('bestand', bestand, naam);
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', `/api/taken/${encodeURIComponent(taakId)}/bijlagen`);
+      xhr.timeout = 120_000;
+      xhr.upload.onprogress = (e) => { if (e.lengthComputable) opVoortgang(e.loaded / e.total); };
+      xhr.onload = () => {
+        let data: unknown = null;
+        try { data = JSON.parse(xhr.responseText); } catch { /* geen JSON */ }
+        if (xhr.status === 201) {
+          const bijlage = alsBijlage(data);
+          klaar(bijlage ? { ok: true, bijlage } : { ok: false, fout: 'Onverwacht antwoord van de server.' });
+        } else {
+          const fout = typeof (data as { fout?: unknown } | null)?.fout === 'string' ? (data as { fout: string }).fout : `Uploaden mislukt (${xhr.status}).`;
+          klaar({ ok: false, fout });
+        }
+      };
+      xhr.onerror = () => klaar({ ok: false, fout: GEEN_VERBINDING });
+      xhr.onabort = () => klaar({ ok: false, fout: AFGEBROKEN });
+      xhr.ontimeout = () => klaar({ ok: false, fout: AFGEBROKEN });
+      xhr.send(fd);
+    } catch {
+      klaar({ ok: false, fout: GEEN_VERBINDING });
+    }
   });
 }

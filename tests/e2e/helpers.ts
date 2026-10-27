@@ -63,3 +63,7 @@ export async function maakTaakMetStops(titel: string, stops: { naam: string; adr
   }
   await sql.end();
 }
+
+/** Een geldige PNG van 1×1 pixel. */
+export const PNG_B64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+export const png = (name: string) => ({ name, mimeType: 'image/png', buffer: Buffer.from(PNG_B64, 'base64') });
