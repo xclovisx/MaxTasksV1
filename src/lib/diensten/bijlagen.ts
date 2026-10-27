@@ -70,7 +70,7 @@ export async function verwijderBijlage(ctx: Context, id: string): Promise<void> 
     await meldWijziging(tx, b.bordId);
   });
   // Lukt dit niet, dan ruimt de nachtrun het losse bestand op.
-  await rm(path.join(bijlagenMap(), id), { force: true }).catch(() => {});
+  await rm(path.join(bijlagenMap(), id), { force: true }).catch((e) => console.error('[bijlagen] bestand verwijderen mislukt; de nachtrun ruimt het op', e));
 }
 
 export async function haalBijlage(id: string): Promise<{ naam: string; type: BijlageType; pad: string }> {
