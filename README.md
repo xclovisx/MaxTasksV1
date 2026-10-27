@@ -153,7 +153,7 @@ Bijlagen (foto's en PDF's bij taken) en de nachtelijke back-ups kunnen op een tw
 
    Er wordt dan nooit stilletjes naar de systeemschijf geschreven.
 4. De oude volumes blijven bestaan. Kijk of alles in de nieuwe mappen staat (`ls /mnt/opslag/takenbord/backups /mnt/opslag/takenbord/bijlagen`) en ruim de oude volumes dan op met `docker volume rm takenbord_backups takenbord_bijlagen`.
-5. Later terug naar de systeemschijf? Haal de regel `OPSLAG_MAP=...` uit `/opt/takenbord/.env` en draai het script opnieuw: het stelt de vraag dan nog eens. Het takenbord gebruikt daarna weer de volumes op de systeemschijf. Er wordt niets teruggekopieerd: wat op de tweede schijf staat, blijft daar staan.
+5. Later terug naar de systeemschijf? Haal de regel `OPSLAG_MAP=...` uit `/opt/takenbord/.env` en draai het script opnieuw: het stelt de vraag dan nog eens. Het takenbord gebruikt daarna weer de volumes op de systeemschijf. Er wordt niets teruggekopieerd: wat op de tweede schijf staat, blijft daar staan. Bijlagen die in die tijd zijn toegevoegd, tonen daarna wel een paperclip maar openen niet meer; kopieer ze zelf terug als je ze nog nodig hebt (hetzelfde geldt voor de back-ups uit die periode).
 
 **Let op:**
 - De schijf moet een Linux-bestandssysteem hebben, zoals ext4. NTFS en exFAT kennen de benodigde eigenaar (uid 1000) niet.
