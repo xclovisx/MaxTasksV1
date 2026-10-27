@@ -19,6 +19,7 @@ export function FotoWeergave({ fotos, begin, onSluit }: { fotos: Bijlage[]; begi
   const metCode = foto.code !== null && !codeKapot;
   const toonCode = metCode && !toonFoto;
   const blader = (stap: number) => {
+    if (!meer) return;
     setIndex((i) => (i + stap + fotos.length) % fotos.length);
     setToonFoto(false);
     setCodeKapot(false);
@@ -76,18 +77,23 @@ export function FotoWeergave({ fotos, begin, onSluit }: { fotos: Bijlage[]; begi
         </div>
       </div>
       <div
-        className="relative flex min-h-0 flex-1 items-center justify-center px-3 pb-3"
+        className={`relative flex min-h-0 flex-1 items-center justify-center pb-3 ${toonCode && meer ? 'px-14' : 'px-3'}`}
         onMouseDown={(e) => { if (e.target === e.currentTarget) onSluit(); }}
       >
         {toonCode && foto.code ? (
-          <div className="flex max-h-full max-w-full flex-col items-center gap-3 rounded-xl bg-white p-4">
+          // Met meerdere foto's laat het omliggende vlak ruimte vrij voor de pijlen, zodat die de code nooit bedekken.
+          <div
+            className={`flex max-h-full w-full flex-col items-center gap-3 overflow-y-auto rounded-xl bg-white p-4 ${
+              isQr(foto.code.formaat) ? 'max-w-[calc(60dvh+2rem)]' : 'max-w-3xl'
+            }`}
+          >
             <img
               src={`${url}/code`}
               alt={isQr(foto.code.formaat) ? 'QR-code' : 'Streepjescode'}
               onError={() => setCodeKapot(true)}
-              className={isQr(foto.code.formaat) ? 'aspect-square w-[min(80vw,60dvh)]' : 'w-[min(90vw,48rem)]'}
+              className={`max-w-full shrink-0 ${isQr(foto.code.formaat) ? 'aspect-square w-full' : 'w-full'}`}
             />
-            <p className="max-w-[min(90vw,48rem)] font-mono text-sm break-all text-black select-text">{foto.code.tekst}</p>
+            <p className="max-w-full font-mono text-sm break-all text-black select-text">{foto.code.tekst}</p>
           </div>
         ) : (
           <img src={url} alt={foto.naam} className="max-h-full max-w-full object-contain" />

@@ -126,7 +126,7 @@ export function BijlagenBlok({ taakId, begin, handvat }: { taakId: string | null
                   href={`/api/bijlagen/${i.bijlage.id}`}
                   target="_blank"
                   rel="noopener"
-                  aria-label={i.bijlage.naam}
+                  aria-label={i.bijlage.code ? `${i.bijlage.naam} (${isQr(i.bijlage.code.formaat) ? 'QR-code' : 'streepjescode'})` : i.bijlage.naam}
                   title={i.bijlage.naam}
                   onClick={(e) => {
                     // Foto's binnen de app tonen; PDF's (en ctrl/cmd-klik) openen gewoon in een nieuw tabblad.

@@ -267,10 +267,14 @@ test('een QR-code in een foto wordt herkend en scherp getoond, met de foto als a
   await expect(weergave.getByText('OPHAAL-E2E-42')).toBeVisible();
   await weergave.getByRole('button', { name: 'Originele foto' }).click();
   await expect(weergave.getByRole('img', { name: 'ophalen.jpg' })).toBeVisible();
-  await weergave.getByRole('button', { name: 'Code' }).click();
+  await expect(weergave.getByRole('link', { name: 'Downloaden' })).not.toHaveAttribute('href', /\/code$/);
+  await weergave.getByRole('button', { name: 'Code', exact: true }).click();
   await expect(weergave.getByRole('img', { name: 'QR-code' })).toBeVisible();
 
+  await weergave.getByRole('button', { name: 'Originele foto' }).click();
   await weergave.getByRole('button', { name: 'Volgende foto' }).click();
   await expect(weergave.getByRole('img', { name: 'gewoon.jpg' })).toBeVisible();
   await expect(weergave.getByRole('button', { name: 'Originele foto' })).toHaveCount(0);
+  await weergave.getByRole('button', { name: 'Vorige foto' }).click();
+  await expect(weergave.getByRole('img', { name: 'QR-code' })).toBeVisible();
 });
