@@ -1,6 +1,10 @@
 import { expect, test } from '@playwright/test';
 import { inloggen, maakMedewerker } from './helpers';
 
+// De e2e-database loopt tijdens een run vol met taken van vandaag. Zodra het bord langer wordt dan het scherm
+// scrolt dnd-kit tijdens het slepen mee en mist de kaart de doeldag; een hoog scherm houdt de pagina zonder scrollbalk.
+test.use({ viewport: { width: 1280, height: 2000 } });
+
 test('een kaart naar een andere dag slepen blijft bewaard', async ({ page }) => {
   const mw = await maakMedewerker();
   await inloggen(page, mw.gebruikersnaam, mw.wachtwoord);

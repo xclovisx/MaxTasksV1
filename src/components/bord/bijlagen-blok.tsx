@@ -89,6 +89,8 @@ export function BijlagenBlok({ taakId, begin, handvat }: { taakId: string | null
     let alles = true;
     for (const i of itemsRef.current) {
       if (i.soort !== 'lokaal' || i.status === 'bezig') continue;
+      // Tijdens eerdere uploads kan de gebruiker dit item hebben weggehaald; de snapshot weet dat niet.
+      if (!itemsRef.current.some((x) => x.soort === 'lokaal' && x.sleutel === i.sleutel)) continue;
       let gelukt = false;
       try { gelukt = await upload(i, id); } catch { /* telt als mislukt */ }
       if (!gelukt) alles = false;
@@ -174,7 +176,7 @@ export function BijlagenBlok({ taakId, begin, handvat }: { taakId: string | null
           )}
         </ul>
       )}
-      <label className="inline-flex h-9 cursor-pointer focus-within:ring-2 focus-within:ring-accent items-center gap-1.5 rounded-lg border border-rand px-3 text-sm text-tekst-zacht hover:bg-kaart">
+      <label className="inline-flex h-9 cursor-pointer items-center has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-accent gap-1.5 rounded-lg border border-rand px-3 text-sm text-tekst-zacht hover:bg-kaart">
         <PaperclipIcoon />
         Foto of bestand toevoegen
         <input

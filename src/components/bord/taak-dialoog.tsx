@@ -16,7 +16,7 @@ import { HERHALING_LABELS, type HerhalingType } from '@/lib/domein/herhaling';
 import { PRIORITEIT_LABEL, PRIORITEITEN, type Prioriteit, type Status, STATUS_LABEL, STATUSSEN } from '@/lib/domein/taak';
 import type { StopInvoer } from '@/lib/domein/validatie';
 import type { ActieResultaat } from '@/lib/web/actie';
-import { BijlagenBlok } from './bijlagen-blok';
+import { BijlagenBlok, type BijlagenHandvat } from './bijlagen-blok';
 import { NavigatieBlok } from './navigatie-blok';
 import { PRIO_KNOP_AAN, STATUS_PIL } from './stijl';
 import { StopsEditor } from './stops-editor';
@@ -55,6 +55,9 @@ export function TaakDialoog({ modus, isBeheerder, onSluit }: { modus: DialoogMod
   const [afwezig, setAfwezig] = useState<string | null>(null);
   const [bezig, start] = useTransition();
   const titelRef = useRef<HTMLInputElement>(null);
+  const bijlagenRef = useRef<BijlagenHandvat | null>(null);
+  // Na een geslaagde aanmaak met mislukte uploads: Opslaan probeert dan alleen de uploads opnieuw (geen tweede taak).
+  const [nieuwId, setNieuwId] = useState<string | null>(null);
 
   const sluitRef = useRef(onSluit);
   useEffect(() => { sluitRef.current = onSluit; });
@@ -117,7 +120,23 @@ export function TaakDialoog({ modus, isBeheerder, onSluit }: { modus: DialoogMod
     const velden = { titel, omschrijving, datum, tijd: tijd || null, prioriteit, stops };
     start(async () => {
       if (modus.soort === 'nieuw') {
-        afronden(await maakTaakActie({ ...velden, bordId: modus.bordId, herhaling: regel() }));
+        let id = nieuwId;
+        if (!id) {
+          const r = await maakTaakActie({ ...velden, bordId: modus.bordId, herhaling: regel() });
+          if (!r.ok) {
+            afronden(r);
+            return;
+          }
+          id = r.data;
+          setNieuwId(id);
+        }
+        if (bijlagenRef.current && !(await bijlagenRef.current.uploadAlles(id))) {
+          setFout({ tekst: 'De taak is opgeslagen, maar niet alle bijlagen zijn geüpload. Klik op Opslaan om het opnieuw te proberen, of sluit het venster.', conflict: false });
+          router.refresh();
+          return;
+        }
+        onSluit();
+        router.refresh();
         return;
       }
       if (!taak) return;
@@ -169,6 +188,18 @@ export function TaakDialoog({ modus, isBeheerder, onSluit }: { modus: DialoogMod
         aria-modal="true"
         aria-label={taak ? 'Taak bewerken' : 'Nieuwe taak'}
         className="max-h-[92dvh] w-full overflow-y-auto rounded-t-2xl border border-rand bg-paneel p-5 shadow-2xl sm:max-w-lg sm:rounded-2xl"
+        onPaste={(e) => {
+          const plaatjes = [...e.clipboardData.files].filter((f) => f.type.startsWith('image/'));
+          if (plaatjes.length === 0) return; // gewone tekst plakken werkt zoals altijd
+          e.preventDefault();
+          bijlagenRef.current?.voegToe(plaatjes);
+        }}
+        onDragOver={(e) => { if (e.dataTransfer.types.includes('Files')) e.preventDefault(); }}
+        onDrop={(e) => {
+          if (e.dataTransfer.files.length === 0) return;
+          e.preventDefault();
+          bijlagenRef.current?.voegToe([...e.dataTransfer.files]);
+        }}
       >
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-base font-semibold">{taak ? 'Taak bewerken' : 'Nieuwe taak'}</h2>
@@ -226,7 +257,7 @@ export function TaakDialoog({ modus, isBeheerder, onSluit }: { modus: DialoogMod
           <Veld label="Omschrijving (optioneel)">
             <Tekstvak value={omschrijving} onChange={(e) => setOmschrijving(e.target.value)} rows={3} maxLength={2000} />
           </Veld>
-          {taak && <BijlagenBlok taakId={taak.id} begin={taak.bijlagen} />}
+          <BijlagenBlok taakId={taak?.id ?? nieuwId} begin={taak?.bijlagen ?? []} handvat={bijlagenRef} />
           <div className="grid grid-cols-2 gap-3">
             <Veld label="Dag">
               <Invoer type="date" value={datum} onChange={(e) => setDatum(e.target.value)} required disabled={reeksBewerken} />
