@@ -48,6 +48,8 @@ export async function voegBijlageToe(ctx: Context, taakId: string, invoer: { naa
       await tx`
         insert into bijlagen (id, taak_id, naam, type, grootte, aangemaakt_door)
         values (${id}, ${taakId}, ${naam}, ${type}, ${invoer.inhoud.length}, ${ctx.gebruikerId})`;
+      // Een reekstaak met een bijlage geldt als afwijkend, zodat het wijzigen of stoppen van de reeks hem niet weggooit.
+      await tx`update taken set afwijkend = (herhaling_id is not null) where id = ${taakId}`;
       await logBijlage(tx, taakId, ctx.gebruikerId, null, naam);
       await meldWijziging(tx, t.bordId);
     });

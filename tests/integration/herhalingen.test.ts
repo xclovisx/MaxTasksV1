@@ -1,6 +1,10 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Context } from '../../src/lib/context';
 import { db, transactie } from '../../src/lib/db/client';
+import { voegBijlageToe } from '../../src/lib/diensten/bijlagen';
 import { genereerExemplaren, stopReeks, wijzigReeks } from '../../src/lib/diensten/herhalingen';
 import { maakTaak, verwijderTaak, wijzigTaak, zetStatus } from '../../src/lib/diensten/taken';
 import { NietGevonden } from '../../src/lib/fouten';
@@ -96,5 +100,41 @@ describe('herhalende reeksen', () => {
     const invoer = { titel: 'X', omschrijving: '', tijd: null, prioriteit: 'laag' as const, herhaling: { type: 'dagelijks' as const, weekdagen: [], intervalWeken: 1 } };
     await expect(wijzigReeks(piet, onbekend, invoer, VANDAAG)).rejects.toBeInstanceOf(NietGevonden);
     await expect(stopReeks(piet, onbekend, VANDAAG)).rejects.toBeInstanceOf(NietGevonden);
+  });
+
+  describe('met een bijlage', () => {
+    let map: string;
+    const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3, 4]);
+    const aantalBijlagen = async () => (await db()<{ n: number }[]>`select count(*)::int as n from bijlagen`)[0].n;
+
+    beforeEach(async () => {
+      map = await mkdtemp(path.join(tmpdir(), 'takenbord-reeks-'));
+      process.env.BIJLAGEN_MAP = map;
+      delete process.env.OPSLAG_CONTROLE;
+    });
+    afterEach(async () => {
+      delete process.env.BIJLAGEN_MAP;
+      await rm(map, { recursive: true, force: true });
+    });
+
+    const nieuweRegel = { titel: 'Nieuw', omschrijving: '', tijd: '16:00', prioriteit: 'middel' as const, herhaling: { type: 'dagelijks' as const, weekdagen: [], intervalWeken: 1 } };
+
+    it('reeks wijzigen: een exemplaar met een bijlage blijft bestaan, bijlage incluis', async () => {
+      await maakDagelijks();
+      const taken = await reeks();
+      await voegBijlageToe(piet, taken[3].id, { naam: 'qr.png', inhoud: PNG });
+      await wijzigReeks(piet, taken[0].herhalingId, nieuweRegel, VANDAAG);
+      expect((await reeks()).find((t) => t.id === taken[3].id)).toMatchObject({ titel: 'Werkplaats vegen' });
+      expect(await aantalBijlagen()).toBe(1);
+    });
+
+    it('reeks stoppen: een exemplaar met een bijlage blijft bestaan, bijlage incluis', async () => {
+      await maakDagelijks();
+      const taken = await reeks();
+      await voegBijlageToe(piet, taken[3].id, { naam: 'qr.png', inhoud: PNG });
+      await stopReeks(piet, taken[0].herhalingId, VANDAAG);
+      expect((await reeks()).map((t) => t.id)).toContain(taken[3].id);
+      expect(await aantalBijlagen()).toBe(1);
+    });
   });
 });
