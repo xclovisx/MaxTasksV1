@@ -1,6 +1,7 @@
 'use server';
 
 import { afwezigheidWaarschuwing } from '@/lib/diensten/afwezigheden';
+import { verwijderBijlage } from '@/lib/diensten/bijlagen';
 import { stopReeks, wijzigReeks } from '@/lib/diensten/herhalingen';
 import { planRoute, type RoutePlan } from '@/lib/diensten/route';
 import {
@@ -63,4 +64,8 @@ export async function afwezigheidWaarschuwingActie(datum: string, tijd: string |
     await ctx(); // alleen ingelogde gebruikers
     return afwezigheidWaarschuwing(datum, tijd);
   });
+}
+
+export async function verwijderBijlageActie(id: string): Promise<ActieResultaat> {
+  return voerUit(async () => { await verwijderBijlage(await ctx(), id); return null; });
 }
