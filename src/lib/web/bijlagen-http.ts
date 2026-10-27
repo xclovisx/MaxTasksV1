@@ -30,6 +30,30 @@ export function zelfdeHerkomst(verzoek: Request, appUrl: string | undefined): bo
   }
 }
 
+/** Leest de stroom tot maximaal `max` bytes; bij meer wordt de stroom afgebroken en komt er null terug. */
+async function leesBegrensd(stroom: ReadableStream<Uint8Array>, max: number): Promise<Uint8Array<ArrayBuffer> | null> {
+  const lezer = stroom.getReader();
+  const stukken: Uint8Array[] = [];
+  let totaal = 0;
+  for (;;) {
+    const { done, value } = await lezer.read();
+    if (done) break;
+    totaal += value.byteLength;
+    if (totaal > max) {
+      await lezer.cancel();
+      return null;
+    }
+    stukken.push(value);
+  }
+  const alles = new Uint8Array(totaal);
+  let positie = 0;
+  for (const stuk of stukken) {
+    alles.set(stuk, positie);
+    positie += stuk.byteLength;
+  }
+  return alles;
+}
+
 export async function verwerkUpload(
   verzoek: Request, gebruiker: SessieGebruiker | null, taakId: string, appUrl = process.env.APP_URL,
 ): Promise<Response> {
@@ -37,9 +61,19 @@ export async function verwerkUpload(
   if (!zelfdeHerkomst(verzoek, appUrl)) return fout(403, 'Verzoek geweigerd');
   // Vóór het inlezen afkappen, zodat een enorm verzoek niet in het geheugen belandt.
   if (Number(verzoek.headers.get('content-length') ?? 0) > MAX_BIJLAGE_BYTES + MARGE) return fout(413, 'Te groot (max 10 MB).');
+  if (!verzoek.body) return fout(400, 'Geen bestand meegestuurd');
+  // Ook zonder Content-Length (chunked) nooit meer dan de limiet inlezen.
+  let bytes: Uint8Array<ArrayBuffer> | null;
+  try {
+    bytes = await leesBegrensd(verzoek.body, MAX_BIJLAGE_BYTES + MARGE);
+  } catch {
+    return fout(400, 'Ongeldig verzoek');
+  }
+  if (!bytes) return fout(413, 'Te groot (max 10 MB).');
   let bestand: FormDataEntryValue | null;
   try {
-    bestand = (await verzoek.formData()).get('bestand');
+    const contentType = verzoek.headers.get('content-type') ?? '';
+    bestand = (await new Response(bytes, { headers: { 'content-type': contentType } }).formData()).get('bestand');
   } catch {
     return fout(400, 'Ongeldig verzoek');
   }
@@ -68,8 +102,10 @@ export async function verwerkDownload(gebruiker: SessieGebruiker | null, id: str
   let grootte: number;
   try {
     grootte = (await stat(b.pad)).size;
-  } catch {
-    return fout(404, 'Bestand niet gevonden');
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === 'ENOENT') return fout(404, 'Bestand niet gevonden');
+    console.error('[bijlagen] bestand lezen mislukt', e);
+    throw e;
   }
   return new Response(Readable.toWeb(createReadStream(b.pad)) as ReadableStream<Uint8Array>, {
     headers: {

@@ -25,7 +25,7 @@ export function bepaalType(b: Uint8Array): BijlageType | null {
 export function schoonNaam(naam: string): string {
   const laatste = naam.split(/[\\/]/).pop() ?? '';
   const zonderStuur = [...laatste].filter((c) => c.charCodeAt(0) >= 32 && c.charCodeAt(0) !== 127).join('');
-  return zonderStuur.trim().slice(0, 200).trim() || 'bijlage';
+  return [...zonderStuur.trim()].slice(0, 200).join('').trim() || 'bijlage';
 }
 
 export function alsJpgNaam(naam: string): string {

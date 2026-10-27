@@ -32,6 +32,13 @@ describe('namen', () => {
     expect(schoonNaam('x'.repeat(300))).toHaveLength(200);
   });
 
+  it('schoonNaam knipt niet midden in een emoji', () => {
+    const r = schoonNaam('x'.repeat(199) + '😀😀');
+    expect([...r]).toHaveLength(200);
+    expect(r.endsWith('😀')).toBe(true);
+    expect(r.isWellFormed()).toBe(true);
+  });
+
   it('alsJpgNaam vervangt de extensie', () => {
     expect(alsJpgNaam('IMG_1234.HEIC')).toBe('IMG_1234.jpg');
     expect(alsJpgNaam('foto.van.pakket.png')).toBe('foto.van.pakket.jpg');

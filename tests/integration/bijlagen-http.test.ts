@@ -64,6 +64,28 @@ describe('upload', () => {
     expect(await groot.json()).toEqual({ fout: 'Te groot (max 10 MB).' });
   });
 
+  it('kapt een groot verzoek zonder Content-Length af zonder alles te lezen', async () => {
+    const chunk = new Uint8Array(64 * 1024);
+    const totaal = 400; // 25 MB, ruim boven 10 MB + marge
+    let gelezen = 0;
+    const stroom = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        if (gelezen >= totaal) return controller.close();
+        gelezen++;
+        controller.enqueue(chunk);
+      },
+    });
+    const verzoek = new Request(`${APP}/api/taken/${taakId}/bijlagen`, {
+      method: 'POST', body: stroom, duplex: 'half',
+      headers: { origin: APP, 'content-type': 'multipart/form-data; boundary=xyz' },
+    } as RequestInit);
+    expect(verzoek.headers.get('content-length')).toBeNull();
+    const res = await verwerkUpload(verzoek, piet, taakId, APP);
+    expect(res.status).toBe(413);
+    expect(await res.json()).toEqual({ fout: 'Te groot (max 10 MB).' });
+    expect(gelezen).toBeLessThan(totaal);
+  });
+
   it('vertaalt dienstfouten naar statuscodes', async () => {
     const gif = await verwerkUpload(uploadVerzoek(new File(['GIF89a'], 'x.gif')), piet, taakId, APP);
     expect(gif.status).toBe(400);
