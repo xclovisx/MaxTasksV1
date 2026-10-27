@@ -38,7 +38,7 @@
 
 **Kaart op het bord.** Een paperclip met het aantal bijlagen, bijvoorbeeld 📎 2. Zonder bijlagen is er geen icoon.
 
-**Live.** Na het toevoegen of verwijderen van een bijlage krijgen andere geopende borden het bestaande `meldWijziging`-sein, zodat de kaarten en een geopend venster bijwerken.
+**Live.** Na het toevoegen of verwijderen van een bijlage krijgen andere geopende borden het bestaande `meldWijziging`-sein, zodat de kaarten bijwerken. In een geopend venster zie je je eigen wijzigingen direct. Wijzigingen van anderen zie je na opnieuw openen, net als bij de andere velden van een taak.
 
 **Geschiedenis.** De regels gebruiken het bestaande formaat `{ veld: { oud, nieuw } }`:
 - bij toevoegen `{ bijlage: { oud: null, nieuw: "qr.jpg" } }`;
@@ -59,7 +59,7 @@
 - **PDF's** gaan ongewijzigd mee.
 - **Bestandsnaam:**
   - De oorspronkelijke naam blijft behouden. Een verkleinde foto krijgt de extensie `.jpg`.
-  - Een geplakte afbeelding zonder naam heet `Schermafbeelding <dd-mm> <uu:mm>.jpg`.
+  - Een geplakte afbeelding zonder eigen naam (Chrome noemt die `image.png`) heet `Schermafbeelding <dd-mm> <uu.mm>.jpg`. Er staat geen `:` in, omdat Windows dat teken in bestandsnamen weigert.
 
 ## 4. Server
 
