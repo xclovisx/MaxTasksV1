@@ -8,7 +8,7 @@ export const OPSLAG_MARKER = '.takenbord-opslag';
 /** Aan bij een aparte opslagschijf: dan moet het controlebestand er zijn en maken we nooit zelf mappen aan. */
 export const opslagControleAan = (): boolean => process.env.OPSLAG_CONTROLE === '1';
 
-export const bijlagenMap = (): string => path.resolve(process.env.BIJLAGEN_MAP || '.opslag/bijlagen');
+export const bijlagenMap = (): string => path.resolve(/* turbopackIgnore: true */ process.env.BIJLAGEN_MAP || '.opslag/bijlagen');
 
 export async function opslagAanwezig(map: string, controle = opslagControleAan()): Promise<boolean> {
   if (!controle) return true;
