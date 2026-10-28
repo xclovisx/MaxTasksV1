@@ -77,13 +77,12 @@ export function FotoWeergave({ fotos, begin, onSluit }: { fotos: Bijlage[]; begi
         </div>
       </div>
       <div
-        className={`relative flex min-h-0 flex-1 items-center justify-center pb-3 ${toonCode && meer ? 'px-14' : 'px-3'}`}
+        className={`relative flex min-h-0 flex-1 justify-center px-3 pb-3 ${toonCode && meer ? 'flex-col items-center gap-3' : 'items-center'}`}
         onMouseDown={(e) => { if (e.target === e.currentTarget) onSluit(); }}
       >
         {toonCode && foto.code ? (
-          // Met meerdere foto's laat het omliggende vlak ruimte vrij voor de pijlen, zodat die de code nooit bedekken.
           <div
-            className={`flex max-h-full w-full flex-col items-center gap-3 overflow-y-auto rounded-xl bg-white p-4 ${
+            className={`flex max-h-full min-h-0 w-full flex-col items-center gap-3 overflow-y-auto rounded-xl bg-white p-4 ${
               isQr(foto.code.formaat) ? 'max-w-[calc(60dvh+2rem)]' : 'max-w-3xl'
             }`}
           >
@@ -98,7 +97,13 @@ export function FotoWeergave({ fotos, begin, onSluit }: { fotos: Bijlage[]; begi
         ) : (
           <img src={url} alt={foto.naam} className="max-h-full max-w-full object-contain" />
         )}
-        {meer && (
+        {meer && (toonCode ? (
+          // Bij een code staan de pijlen onder het witte vlak, zodat de code de volle breedte kan gebruiken.
+          <div className="flex shrink-0 gap-4">
+            <button type="button" aria-label="Vorige foto" onClick={() => blader(-1)} className={knop}><PijlLinks /></button>
+            <button type="button" aria-label="Volgende foto" onClick={() => blader(1)} className={knop}><PijlRechts /></button>
+          </div>
+        ) : (
           <>
             <button type="button" aria-label="Vorige foto" onClick={() => blader(-1)} className={`${knop} absolute top-1/2 left-3 -translate-y-1/2`}>
               <PijlLinks />
@@ -107,7 +112,7 @@ export function FotoWeergave({ fotos, begin, onSluit }: { fotos: Bijlage[]; begi
               <PijlRechts />
             </button>
           </>
-        )}
+        ))}
       </div>
     </div>,
     document.body,

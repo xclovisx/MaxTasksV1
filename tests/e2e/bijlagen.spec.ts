@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { inloggen, maakMedewerker, PNG_B64, png, qrPng } from './helpers';
+import { inloggen, maakMedewerker, PNG_B64, png, qrPng, streepPng } from './helpers';
 
 test('bijlage toevoegen aan een bestaande taak, bekijken en verwijderen', async ({ page }) => {
   const mw = await maakMedewerker();
@@ -277,4 +277,32 @@ test('een QR-code in een foto wordt herkend en scherp getoond, met de foto als a
   await expect(weergave.getByRole('button', { name: 'Originele foto' })).toHaveCount(0);
   await weergave.getByRole('button', { name: 'Vorige foto' }).click();
   await expect(weergave.getByRole('img', { name: 'QR-code' })).toBeVisible();
+});
+
+test('een streepjescode gebruikt op de telefoon de volle breedte, met de pijlen eronder', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  const mw = await maakMedewerker();
+  await inloggen(page, mw.gebruikersnaam, mw.wachtwoord);
+  await page.waitForURL(/\/bord\//);
+  await page.getByRole('button', { name: 'Nieuwe taak' }).click();
+  const nieuw = page.getByRole('dialog', { name: 'Nieuwe taak' });
+  await nieuw.getByLabel('Titel').fill('e2e-streepjescode-breed');
+  await nieuw.getByLabel('Foto of bestand toevoegen').setInputFiles([await streepPng('label.png', '3SPNL1234567890'), png('gewoon.png')]);
+  await expect(nieuw.getByText('gewoon.jpg')).toBeVisible();
+  await nieuw.getByRole('button', { name: 'Opslaan' }).click();
+  await expect(nieuw).toBeHidden();
+
+  await page.locator('[data-taak]', { hasText: 'e2e-streepjescode-breed' }).click();
+  await page.getByRole('dialog', { name: 'Taak bewerken' }).getByRole('link', { name: 'label.jpg' }).click();
+  const weergave = page.getByRole('dialog', { name: 'Foto bekijken' });
+  const code = weergave.getByRole('img', { name: 'Streepjescode' });
+  await expect(code).toBeVisible();
+  const cb = (await code.boundingBox())!;
+  expect(cb.width).toBeGreaterThan(390 - 2 * 12 - 2 * 16 - 2); // volle breedte min marge en padding van het witte vlak
+  const vorige = (await weergave.getByRole('button', { name: 'Vorige foto' }).boundingBox())!;
+  const volgende = (await weergave.getByRole('button', { name: 'Volgende foto' }).boundingBox())!;
+  expect(vorige.y).toBeGreaterThanOrEqual(cb.y + cb.height);
+  expect(volgende.y).toBeGreaterThanOrEqual(cb.y + cb.height);
+  await weergave.getByRole('button', { name: 'Volgende foto' }).click();
+  await expect(weergave.getByRole('img', { name: 'gewoon.jpg' })).toBeVisible();
 });

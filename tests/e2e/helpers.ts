@@ -72,3 +72,7 @@ export const png = (name: string) => ({ name, mimeType: 'image/png', buffer: Buf
 export async function qrPng(name: string, tekst: string) {
   return { name, mimeType: 'image/png', buffer: Buffer.from(await codePng('QRCode', tekst, 8)) };
 }
+
+export async function streepPng(name: string, tekst: string) {
+  return { name, mimeType: 'image/png', buffer: Buffer.from(await codePng('Code128', tekst, 4)) };
+}
