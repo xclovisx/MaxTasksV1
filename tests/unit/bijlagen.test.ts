@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  alsJpgNaam, bepaalType, formatGrootte, geldigeCode, grootsteCode, isQr, magOngewijzigd, MAX_BIJLAGE_BYTES, plakNaam, schoonNaam,
+  alsJpgNaam, beeldAfmetingen, bepaalType, formatGrootte, geldigeCode, grootsteCode, isQr, magOngewijzigd, MAX_BIJLAGE_BYTES, plakNaam, schoonNaam,
   soortVerwerking,
 } from '../../src/lib/domein/bijlagen';
 
@@ -104,5 +104,52 @@ describe('codes', () => {
   it('isQr', () => {
     expect(isQr('QRCode')).toBe(true);
     expect(isQr('Code128')).toBe(false);
+  });
+});
+
+describe('beeldAfmetingen', () => {
+  const be32 = (n: number) => [(n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255];
+  const le = (n: number, len: number) => Array.from({ length: len }, (_, i) => (n >>> (8 * i)) & 255);
+  const riff = (chunk: string, data: number[]) =>
+    new Uint8Array([...tekst('RIFF'), 0, 0, 0, 0, ...tekst('WEBP'), ...tekst(chunk), 0, 0, 0, 0, ...data]);
+
+  it('leest een PNG-kop', () => {
+    const png = bytes(0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, ...tekst('IHDR'), ...be32(12000), ...be32(800), 8, 6, 0, 0, 0);
+    expect(beeldAfmetingen(png)).toEqual({ breedte: 12000, hoogte: 800 });
+  });
+
+  it('leest een JPEG na andere segmenten en slaat DHT over', () => {
+    const jpg = bytes(
+      0xff, 0xd8, 0xff, 0xe0, 0, 4, 0x4a, 0x46, // APP0 met twee bytes inhoud
+      0xff, 0xc4, 0, 3, 0, // DHT: geen SOF
+      0xff, 0xc0, 0, 17, 8, 0x0b, 0xb8, 0x07, 0xd0, 3, 1, 0x22, 0, 2, 0x11, 1, 3, 0x11, 1, // SOF0: 3000 hoog, 2000 breed
+    );
+    expect(beeldAfmetingen(jpg)).toEqual({ breedte: 2000, hoogte: 3000 });
+    const progressief = bytes(0xff, 0xd8, 0xff, 0xc2, 0, 11, 8, 0, 20, 0, 10, 1, 1, 0x11, 0);
+    expect(beeldAfmetingen(progressief)).toEqual({ breedte: 10, hoogte: 20 });
+  });
+
+  it('geeft null voor een JPEG zonder SOF of met alleen een DHT', () => {
+    expect(beeldAfmetingen(bytes(0xff, 0xd8, 0xff, 0xc4, 0, 5, 0, 0, 20, 0, 10))).toBeNull();
+    expect(beeldAfmetingen(bytes(0xff, 0xd8, 0xff, 0xda, 0, 2))).toBeNull();
+  });
+
+  it('leest WebP: lossy, lossless en extended', () => {
+    const lossy = riff('VP8 ', [0, 0, 0, 0x9d, 0x01, 0x2a, ...le(640, 2), ...le(480, 2)]);
+    expect(beeldAfmetingen(lossy)).toEqual({ breedte: 640, hoogte: 480 });
+    const bits = (4000 - 1) | ((3000 - 1) << 14);
+    expect(beeldAfmetingen(riff('VP8L', [0x2f, ...le(bits, 4)]))).toEqual({ breedte: 4000, hoogte: 3000 });
+    const ext = riff('VP8X', [0, 0, 0, 0, ...le(12000 - 1, 3), ...le(9000 - 1, 3)]);
+    expect(beeldAfmetingen(ext)).toEqual({ breedte: 12000, hoogte: 9000 });
+  });
+
+  it('geeft null bij onbekende of afgekapte invoer', () => {
+    expect(beeldAfmetingen(new Uint8Array())).toBeNull();
+    expect(beeldAfmetingen(tekst('%PDF-1.7\n'))).toBeNull();
+    expect(beeldAfmetingen(bytes(0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, ...tekst('IHDR'), 0, 0))).toBeNull();
+    expect(beeldAfmetingen(bytes(0xff, 0xd8, 0xff, 0xc0, 0, 17, 8, 0))).toBeNull();
+    expect(beeldAfmetingen(riff('VP8 ', [0, 0, 0, 0x9d, 0x01, 0x2a, 1]))).toBeNull();
+    expect(beeldAfmetingen(riff('VP8X', [0, 0, 0, 0, 1, 2]))).toBeNull();
+    expect(beeldAfmetingen(tekst('RIFF\x00\x00\x00\x00WEBPVP8 '))).toBeNull();
   });
 });

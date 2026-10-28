@@ -12,6 +12,9 @@ export const MAX_BIJLAGEN_PER_TAAK = 10;
 export const BEWAAR_DAGEN_NA_KLAAR = 30;
 /** Langste zijde van een foto na verkleinen; een QR-code blijft dan goed scanbaar. */
 export const MAX_ZIJDE = 2000;
+/** Grenzen voor het herkennen van codes: zxing decodeert de hele afbeelding in het geheugen, dus veel groter laten we liggen. */
+export const MAX_HERKEN_PIXELS = 16_000_000;
+export const MAX_HERKEN_ZIJDE = 6000;
 
 const ascii = (s: string) => [...s].map((c) => c.charCodeAt(0));
 const begintMet = (b: Uint8Array, kop: number[], vanaf = 0) =>
@@ -23,6 +26,55 @@ export function bepaalType(b: Uint8Array): BijlageType | null {
   if (begintMet(b, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) return 'image/png';
   if (begintMet(b, ascii('RIFF')) && begintMet(b, ascii('WEBP'), 8)) return 'image/webp';
   if (begintMet(b, ascii('%PDF-'))) return 'application/pdf';
+  return null;
+}
+
+/** Leest breedte en hoogte uit de kop van een PNG, JPEG of WebP zonder te decoderen; null als onbekend of afgekapt. */
+export function beeldAfmetingen(b: Uint8Array): { breedte: number; hoogte: number } | null {
+  const u16 = (i: number) => (b[i] << 8) | b[i + 1];
+  const u32 = (i: number) => ((b[i] << 24) | (b[i + 1] << 16) | (b[i + 2] << 8) | b[i + 3]) >>> 0;
+  const l16 = (i: number) => b[i] | (b[i + 1] << 8);
+  const l24 = (i: number) => b[i] | (b[i + 1] << 8) | (b[i + 2] << 16);
+  const l32 = (i: number) => (b[i] | (b[i + 1] << 8) | (b[i + 2] << 16) | (b[i + 3] << 24)) >>> 0;
+
+  if (begintMet(b, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) {
+    if (b.length < 24) return null;
+    return { breedte: u32(16), hoogte: u32(20) };
+  }
+
+  if (begintMet(b, [0xff, 0xd8])) {
+    let i = 2;
+    while (i + 4 <= b.length) {
+      if (b[i] !== 0xff) return null;
+      const m = b[i + 1];
+      if (m === 0xff) { i++; continue; } // opvulbytes
+      if (m === 0x01 || (m >= 0xd0 && m <= 0xd8)) { i += 2; continue; } // markers zonder lengte
+      if (m === 0xd9 || m === 0xda) return null; // einde of beelddata zonder SOF
+      const sof = m >= 0xc0 && m <= 0xcf && m !== 0xc4 && m !== 0xc8 && m !== 0xcc;
+      if (sof) {
+        if (i + 9 > b.length) return null;
+        return { breedte: u16(i + 7), hoogte: u16(i + 5) };
+      }
+      i += 2 + u16(i + 2);
+    }
+    return null;
+  }
+
+  if (begintMet(b, ascii('RIFF')) && begintMet(b, ascii('WEBP'), 8)) {
+    if (begintMet(b, ascii('VP8 '), 12)) {
+      if (b.length < 30 || !begintMet(b, [0x9d, 0x01, 0x2a], 23)) return null;
+      return { breedte: l16(26) & 0x3fff, hoogte: l16(28) & 0x3fff };
+    }
+    if (begintMet(b, ascii('VP8L'), 12)) {
+      if (b.length < 25 || b[20] !== 0x2f) return null;
+      const bits = l32(21);
+      return { breedte: (bits & 0x3fff) + 1, hoogte: ((bits >>> 14) & 0x3fff) + 1 };
+    }
+    if (begintMet(b, ascii('VP8X'), 12)) {
+      if (b.length < 30) return null;
+      return { breedte: l24(24) + 1, hoogte: l24(27) + 1 };
+    }
+  }
   return null;
 }
 

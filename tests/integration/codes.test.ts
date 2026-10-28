@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { herkenCode, tekenCode } from '../../src/lib/codes';
 import { codePng } from '../codes-helper';
 
@@ -26,5 +26,36 @@ describe('codes', () => {
     const streep = await tekenCode({ formaat: 'EAN13', tekst: '8712345678906' });
     expect(streep).toMatch(/viewBox/);
     await expect(tekenCode({ formaat: 'EAN13', tekst: 'abc' })).rejects.toThrow();
+  });
+});
+
+describe('codes op extreem grote afbeeldingen', () => {
+  const be32 = (n: number) => [(n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255];
+  const pngMetKop = (breedte: number, hoogte: number) =>
+    new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52, ...be32(breedte), ...be32(hoogte), 8, 6, 0, 0, 0]);
+
+  it('slaat een afbeelding over waarvan de kop te grote afmetingen claimt, zonder te decoderen', async () => {
+    const waarschuwing = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const t0 = performance.now();
+      expect(await herkenCode(pngMetKop(12000, 12000))).toBeNull();
+      expect(await herkenCode(pngMetKop(7000, 100))).toBeNull(); // te lange zijde
+      expect(performance.now() - t0).toBeLessThan(200);
+      expect(waarschuwing).toHaveBeenCalledTimes(2);
+      expect(waarschuwing.mock.calls[0][0]).toBe('[codes] te groot om te herkennen');
+      expect(String(waarschuwing.mock.calls[0][1])).toContain('12000');
+    } finally {
+      waarschuwing.mockRestore();
+    }
+  });
+
+  it('slaat een afbeelding met onbekende afmetingen over', async () => {
+    const waarschuwing = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      expect(await herkenCode(new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]))).toBeNull();
+      expect(waarschuwing).toHaveBeenCalledTimes(1);
+    } finally {
+      waarschuwing.mockRestore();
+    }
   });
 });

@@ -1,7 +1,9 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { prepareZXingModule, readBarcodes, writeBarcode } from 'zxing-wasm/full';
-import { CODE_FORMATEN, type Code, geldigeCode, grootsteCode } from './domein/bijlagen';
+import {
+  beeldAfmetingen, CODE_FORMATEN, type Code, geldigeCode, grootsteCode, MAX_HERKEN_PIXELS, MAX_HERKEN_ZIJDE,
+} from './domein/bijlagen';
 
 // Het wasm-bestand zelf inlezen: standaard haalt zxing-wasm het van een CDN, en dat willen we op de server niet.
 const WASM = path.join(process.cwd(), 'node_modules', 'zxing-wasm', 'dist', 'full', 'zxing_full.wasm');
@@ -23,6 +25,12 @@ export function laadZxing(): Promise<unknown> {
 /** Zoekt de grootste QR- of streepjescode in een foto. Gooit nooit: zonder (geldige) code komt er null terug. */
 export async function herkenCode(bytes: Uint8Array): Promise<Code | null> {
   try {
+    // zxing decodeert de hele afbeelding in het wasm-geheugen op de event loop; een enorme afbeelding slaan we dus over.
+    const afm = beeldAfmetingen(bytes);
+    if (!afm || afm.breedte * afm.hoogte > MAX_HERKEN_PIXELS || Math.max(afm.breedte, afm.hoogte) > MAX_HERKEN_ZIJDE) {
+      console.warn('[codes] te groot om te herkennen', afm ? `${afm.breedte}x${afm.hoogte}` : 'afmetingen onbekend');
+      return null;
+    }
     await laadZxing();
     const resultaten = (await readBarcodes(bytes, { formats: [...CODE_FORMATEN], tryHarder: true }))
       .map((r) => ({ r, code: geldigeCode(r) }))
