@@ -64,6 +64,15 @@ describe('bijlagen', () => {
     expect(aangeroepen).toBe(1);
   });
 
+  it('herkent pas als de opslag er is: zonder schijf wordt er niets herkend', async () => {
+    await rm(path.join(map, OPSLAG_MARKER), { force: true });
+    process.env.OPSLAG_CONTROLE = '1';
+    let aangeroepen = 0;
+    const herken = async () => { aangeroepen++; return null; };
+    await expect(voegBijlageToe(piet, taakId, { naam: 'qr.png', inhoud: PNG }, herken)).rejects.toEqual(new OpslagOntbreekt());
+    expect(aangeroepen).toBe(0);
+  });
+
   it('een herkenning die gooit, blokkeert de upload niet', async () => {
     const b = await voegBijlageToe(piet, taakId, { naam: 'qr.png', inhoud: PNG }, async () => { throw new Error('kapot'); });
     expect(b.code).toBeNull();

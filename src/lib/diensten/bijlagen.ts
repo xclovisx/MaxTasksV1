@@ -31,6 +31,10 @@ export async function voegBijlageToe(
   const type = bepaalType(invoer.inhoud);
   if (!type) throw new Ongeldig("Dit bestandstype kan niet (alleen foto's en PDF's).");
   const naam = schoonNaam(invoer.naam);
+  const map = bijlagenMap();
+  await vereisOpslag(map);
+
+  // Pas na de opslagcontrole: zonder schijf hoeven we geen rekentijd te verspillen. Wel vóór de transactie, die blijft kort.
   let code: Code | null = null;
   if (type !== 'application/pdf') {
     try {
@@ -39,8 +43,6 @@ export async function voegBijlageToe(
       console.error('[bijlagen] code herkennen mislukt', e); // de upload gaat gewoon door
     }
   }
-  const map = bijlagenMap();
-  await vereisOpslag(map);
 
   const id = randomUUID();
   const doel = path.join(map, id);

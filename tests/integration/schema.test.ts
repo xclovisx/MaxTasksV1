@@ -120,4 +120,3 @@ describe('bijlagen in taken_weergave', () => {
       .rejects.toThrow(/bijlagen_code_compleet/);
   });
 });
-
